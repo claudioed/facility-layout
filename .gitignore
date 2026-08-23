@@ -2,3 +2,7 @@ bin/
 .env
 *.test
 *.out
+
+# Local scratch artifacts
+.playwright-mcp/
+*.png
