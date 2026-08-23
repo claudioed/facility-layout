@@ -270,6 +270,23 @@ jobs:
           docker buildx imagetools create \
             -t claudioed/facility-layout:${{ steps.version.outputs.version }} \
             claudioed/facility-layout:${{ env.SHORT_SHA }}
+      - name: Package and publish the Helm chart for this release
+        run: |
+          CHART_VERSION="${{ steps.version.outputs.version }}"
+          CHART_VERSION="${CHART_VERSION#v}"
+          mkdir -p /tmp/chart-out
+          helm package charts/facility-layout \
+            --version "$CHART_VERSION" \
+            --app-version "$CHART_VERSION" \
+            -d /tmp/chart-out
+          echo "CHART_TGZ=/tmp/chart-out/facility-layout-${CHART_VERSION}.tgz" >> "$GITHUB_ENV"
+          echo "$DOCKERHUB_TOKEN" | helm registry login registry-1.docker.io \
+            -u "$DOCKERHUB_USERNAME" --password-stdin
+          helm push "/tmp/chart-out/facility-layout-${CHART_VERSION}.tgz" \
+            oci://registry-1.docker.io/claudioed
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Create and push the git tag
         run: |
           git config user.name "github-actions[bot]"
@@ -281,6 +298,10 @@ jobs:
         with:
           tag_name: ${{ steps.version.outputs.version }}
           generate_release_notes: true
+          files: ${{ env.CHART_TGZ }}
           body: |
             Docker image: `claudioed/facility-layout:${{ steps.version.outputs.version }}`
             (also tagged `latest` and `${{ env.SHORT_SHA }}`)
+
+            Helm chart: `oci://registry-1.docker.io/claudioed/facility-layout:${{ steps.version.outputs.version }}`
+            (also attached below as a `.tgz`)
