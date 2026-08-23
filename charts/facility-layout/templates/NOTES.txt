@@ -1,0 +1,27 @@
+{{ .Chart.Name }} has been deployed.
+
+Release:   {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+Service:   {{ include "facility-layout.fullname" . }} ({{ .Values.service.type }}, port {{ .Values.service.port }})
+
+{{- if .Values.ingress.enabled }}
+{{- range .Values.ingress.hosts }}
+Ingress:   http://{{ .host }}{{ (index .paths 0).path }}
+{{- end }}
+{{- else }}
+To reach it locally:
+  kubectl --namespace {{ .Release.Namespace }} port-forward svc/{{ include "facility-layout.fullname" . }} 8080:{{ .Values.service.port }}
+  curl http://localhost:8080/healthz
+{{- end }}
+
+{{- if not (or .Values.database.url .Values.database.existingSecret) }}
+
+NOTE: no database.url / database.existingSecret was set — running with
+IN-MEMORY adapters (state is lost on pod restart).
+{{- end }}
+
+Try the "draw the warehouse" endpoints once a layout is loaded:
+  curl http://localhost:8080/sites/WH1/layout
+  curl http://localhost:8080/zones/WH1-STOR-AMB/grid
+  curl "http://localhost:8080/sites/WH1/layout?format=svg" -o wh1.svg

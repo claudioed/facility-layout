@@ -1,0 +1,13 @@
+apiVersion: v2
+name: facility-layout
+description: Facility Layout — the warehouse map (site, area, zone, aisle and coded location slots) as a Generic Subdomain Open Host Service
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/claudioed/facility-layout
+keywords:
+  - ddd
+  - hexagonal-architecture
+  - warehouse-management-system
+  - facility-layout
+  - golang

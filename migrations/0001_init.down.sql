@@ -1,0 +1,7 @@
+DROP TABLE IF EXISTS events;
+DROP TABLE IF EXISTS location_slots;
+DROP TABLE IF EXISTS placement_rules;
+DROP TABLE IF EXISTS location_types;
+DROP TABLE IF EXISTS aisles;
+DROP TABLE IF EXISTS zones;
+DROP TABLE IF EXISTS sites;
