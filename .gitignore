@@ -3,6 +3,6 @@ bin/
 *.test
 *.out
 
-# Local scratch artifacts
+# Local scratch artifacts from browser-based verification
 .playwright-mcp/
-*.png
+/*.png
