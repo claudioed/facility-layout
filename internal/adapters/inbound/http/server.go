@@ -7,11 +7,34 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/riandyrn/otelchi"
+	otelchimetric "github.com/riandyrn/otelchi/metric"
 
 	"github.com/claudioed/facility-layout/internal/application/usecases"
 	"github.com/claudioed/facility-layout/internal/domain/placement"
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 )
+
+// DefaultServiceName is the service name reported on this adapter's spans
+// and metrics when the composition root does not override it.
+const DefaultServiceName = "facility-layout"
+
+// RouterOption tunes NewRouter.
+type RouterOption func(*routerConfig)
+
+type routerConfig struct {
+	serviceName string
+}
+
+// WithServiceName sets the service name otelchi stamps on HTTP spans and
+// metrics — normally OTEL_SERVICE_NAME, resolved by the composition root.
+func WithServiceName(name string) RouterOption {
+	return func(cfg *routerConfig) {
+		if name != "" {
+			cfg.serviceName = name
+		}
+	}
+}
 
 // Server holds every use case the HTTP adapter depends on.
 type Server struct {
@@ -48,13 +71,34 @@ type Server struct {
 //
 // logger drives per-request structured logging; a nil logger falls back to
 // slog.Default().
-func NewRouter(s *Server, logger *slog.Logger) http.Handler {
+//
+// opts tune the OpenTelemetry instrumentation; without any, the router is
+// still traced and metered, under DefaultServiceName.
+func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
+	cfg := routerConfig{serviceName: DefaultServiceName}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
+	// Tracing goes on before request logging so the logged line already
+	// sits inside the request span and picks up its trace_id/span_id.
+	// WithChiRoutes makes the span name the route PATTERN
+	// (GET /locations/{locationCode}), not the raw path, which is what
+	// keeps span names from exploding into one per location code.
+	r.Use(otelchi.Middleware(cfg.serviceName, otelchi.WithChiRoutes(r)))
+	metricCfg := otelchimetric.NewBaseConfig(cfg.serviceName)
+	// http.server.request.duration, per the OTel HTTP semantic
+	// conventions — emitted by otelchi's metric middleware rather than
+	// hand-rolled here, so the bucket boundaries and attributes match
+	// what every other OTel HTTP instrumentation produces.
+	r.Use(otelchimetric.NewServerRequestDuration(metricCfg))
+	r.Use(otelchimetric.NewServerActiveRequests(metricCfg))
 	r.Use(RequestLogger(logger))
 	r.Use(middleware.Recoverer)
 
