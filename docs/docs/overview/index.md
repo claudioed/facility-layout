@@ -7,6 +7,13 @@ description: The warehouse map — Site, Zone, Aisle and coded LocationSlots, an
 
 # Facility Layout
 
+:::warning[Study project]
+This documentation site is an educational Domain-Driven Design exercise. It
+follows real industry-standard patterns and terminology, but it is **not a
+production system** and is **not affiliated with, endorsed by, or
+representative of Amazon or any other company**.
+:::
+
 **Facility Layout** is the bounded context that owns *where things physically
 are in the building*: a site's structural hierarchy — Site → Area → Zone →
 Aisle → Bay → Level → Position — and the coded storage slots inside it.
