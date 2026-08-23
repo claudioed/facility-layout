@@ -1,0 +1,59 @@
+# gremlins (github.com/go-gremlins/gremlins) configuration.
+#
+# Keeps local runs and the CI `mutation-fast` job byte-identical: both just run
+#   gremlins unleash ./internal/domain
+# and pick their workers / timeout / thresholds up from here.
+#
+# Thresholds lock in TODAY's measured quality so a regression fails the build;
+# they are deliberately not aspirational (same posture as the 90% coverage gate
+# on a suite that already sits above it). Measured on the full domain layer:
+# 99 mutants, 89 killed / 10 lived, efficacy 89.90%, mutator coverage 100.00%.
+# See MUTATION.md for the triage of the 10 survivors.
+silent: false
+
+unleash:
+  # 2 workers keeps the run ~90s on a 2-vCPU GitHub runner while staying well
+  # inside the mutation-fast job's timeout-minutes.
+  workers: 2
+  # Per-mutant test timeout = coefficient x the measured baseline test time.
+  # 30, matching the scheduled `mutation` job so the two runs are directly
+  # comparable. This is NOT a runtime knob here: no mutant in this domain
+  # genuinely hangs, so the timeout never fires on a healthy run and a higher
+  # coefficient costs nothing. It is a FLAKINESS knob — at 15 a loaded machine
+  # manufactured 4 spurious TIMED OUT mutants, and because a timed-out mutant
+  # leaves the 10 known survivors in the denominator while dropping out of the
+  # killed count, efficacy fell 89.90% -> 89.47% on load alone. 30 keeps the
+  # score stable on a contended 2-vCPU runner.
+  timeout-coefficient: 30
+  threshold:
+    # Fails the run below this. Measured today: 89.90%.
+    efficacy: 89
+    # Every mutable statement in the domain is currently reached by a test
+    # (measured 100.00%); 95 leaves a little headroom before it blocks.
+    mutant-coverage: 95
+
+# Mutator set: the gremlins defaults, stated explicitly so a future gremlins
+# release changing a default cannot silently move the numbers above.
+mutants:
+  arithmetic-base:
+    enabled: true
+  conditionals-boundary:
+    enabled: true
+  conditionals-negation:
+    enabled: true
+  increment-decrement:
+    enabled: true
+  invert-negatives:
+    enabled: true
+  invert-assignments:
+    enabled: false
+  invert-bitwise:
+    enabled: false
+  invert-bwassign:
+    enabled: false
+  invert-logical:
+    enabled: false
+  invert-loopctrl:
+    enabled: false
+  remove-self-assignments:
+    enabled: false

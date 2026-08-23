@@ -1,0 +1,31 @@
+# lefthook (github.com/evilmartians/lefthook) — local git hooks.
+#
+# One-time activation on a fresh clone:
+#   brew install lefthook   # or: go install github.com/evilmartians/lefthook@latest
+#   lefthook install
+#
+# The hooks only ever call `make` targets, so the hook and the CI job and the
+# command an agent runs by hand are all the same command. Nothing here needs a
+# database: no integration tests, no mutation testing in hooks.
+
+colors: true
+
+pre-commit:
+  parallel: false
+  commands:
+    fmt-check:
+      run: make fmt-check
+      fail_text: "gofmt found unformatted files — run 'make fmt' and re-stage"
+    vet:
+      run: make vet
+      fail_text: "go vet failed — fix the reported issues before committing"
+    lint:
+      run: make lint
+      fail_text: "golangci-lint failed (or is not installed: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.1)"
+
+pre-push:
+  parallel: false
+  commands:
+    check:
+      run: make check
+      fail_text: "'make check' failed (fmt-check, vet, build, lint, test) — do not push red code"

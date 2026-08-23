@@ -592,6 +592,31 @@ spectral lint apis/openapi.yaml --ruleset .spectral.yaml --fail-severity=warn
 
 ---
 
+## Local development / quality gate
+
+Every CI sensor is also a `make` target, so the same feedback is available
+before a commit leaves the machine. `make help` lists them all.
+
+```sh
+make check      # fast pre-commit loop: fmt-check, vet, build, lint, test
+make check-all  # pre-push gate: check + coverage (90% gate) + arch-test + bdd
+make vuln       # govulncheck ./... (supply-chain sensor)
+make mutation   # gremlins over ./internal/domain, thresholds from .gremlins.yaml
+```
+
+`make check` needs no database and runs in well under a minute; `make
+integration` (Postgres) and the exhaustive scheduled mutation run are
+deliberately outside both bundles.
+
+Git hooks are managed by [lefthook](https://github.com/evilmartians/lefthook)
+and configured in `lefthook.yml` (pre-commit: `fmt-check` + `vet` + `lint`;
+pre-push: `make check`). Activate them once per clone:
+
+```sh
+brew install lefthook          # or: go install github.com/evilmartians/lefthook@latest
+lefthook install
+```
+
 ## Tests & quality gates
 
 ```sh
@@ -618,14 +643,20 @@ go test ./... -run TestFeatures -v
 # architecture fitness tests (arch-go)
 go test ./internal/architecture/... -v
 
-# mutation testing (exploratory, never blocking — see MUTATION.md)
-gremlins unleash ./internal/domain --workers 1 --timeout-coefficient 30
+# mutation testing — blocking fast run, config in .gremlins.yaml (see MUTATION.md)
+gremlins unleash ./internal/domain
+
+# vulnerability scan (dependencies + Go stdlib)
+govulncheck ./...
 ```
 
 CI (`.github/workflows/ci.yml`) runs `lint`, `test` (with the 90% coverage
-gate), `bdd`, `integration`, `api-lint`, `helm-lint` and `arch-test` on every
-push and PR; `mutation` runs only on schedule/manual dispatch; and
-`docker-publish` pushes to Docker Hub on `main` once every other job is green.
+gate), `bdd`, `integration`, `mutation-fast` (the blocking mutation subset,
+thresholds from `.gremlins.yaml`), `vuln` (govulncheck), `api-lint`,
+`helm-lint` and `arch-test` on every push and PR; the exhaustive `mutation`
+job runs only on schedule/manual dispatch; and `docker-publish` pushes to
+Docker Hub on `main` once every other job is green. Dependency drift is
+watched by `.github/dependabot.yml` (gomod + github-actions, weekly).
 
 ## Helm chart
 

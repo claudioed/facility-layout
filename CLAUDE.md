@@ -295,3 +295,30 @@ details on every error).
   slot registration rejected when it violates a PlacementRule; duplicate
   LocationCode rejected; Zone/Aisle registration rejected against an
   unknown or Decommissioned parent.
+
+## Local quality gate (run before every commit)
+
+- **After making changes, run `make check`.** That is the fast
+  self-correction loop: `fmt-check`, `vet`, `build`, `lint`, `test` — the same
+  sensors CI runs, in well under a minute, with no database needed. Fix
+  whatever it reports and re-run until it is green *before* you commit.
+- **Before pushing, run `make check-all`** — `check` plus the 90% `coverage`
+  gate, the arch-go `arch-test` fitness tests, and the `bdd` acceptance suite.
+- `make vuln` runs `govulncheck ./...` (the supply-chain sensor, blocking in
+  CI as the `vuln` job). Run it after touching `go.mod`/`go.sum`.
+- `make mutation` runs gremlins over `./internal/domain` with the thresholds in
+  `.gremlins.yaml` — the same command the blocking `mutation-fast` CI job runs.
+  It takes a couple of minutes, so it is not part of `check`; run it when you
+  change domain behaviour or domain tests.
+- `make integration` and the slow scheduled `mutation` job are deliberately
+  NOT in either bundle: the first needs `DATABASE_URL` and a live Postgres,
+  the second takes too long for an edit loop.
+- The lefthook git hooks enforce this automatically once someone has run
+  `lefthook install` locally (pre-commit: `fmt-check` + `vet` + `lint`;
+  pre-push: `make check`) — but run `make check` proactively rather than
+  relying on the hook to catch you.
+
+**Why this exists:** it keeps quality *left* (harness engineering) — every
+sensor that used to fire only in CI, post-push, now fires locally so an agent
+or a human can self-correct before the problem ever reaches a reviewer or the
+pipeline.

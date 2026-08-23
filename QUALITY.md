@@ -71,10 +71,13 @@ runs `RunMigrations` and truncates, so execution order does not matter.
 
 ## 4 — Mutation testing
 
-gremlins against `internal/domain/...` only, exploratory and **never
-blocking** — the `mutation` CI job is gated to `workflow_dispatch` and the
-weekly schedule. Baseline: **89.90% test efficacy, 100% mutator coverage, 0
-uncovered mutants**. See [MUTATION.md](MUTATION.md) for the full triage of
+gremlins against `internal/domain/...` only, configured once in
+`.gremlins.yaml`. It runs twice: **`mutation-fast` blocks every push and PR**
+(same scope, 2 workers, ~60s, gated at >= 89% efficacy / >= 95% mutator
+coverage), and the exhaustive `mutation` job stays on `workflow_dispatch` and
+the weekly schedule. Baseline: **89.90% test efficacy, 100% mutator coverage,
+0 uncovered mutants** — the gate sits just under it, so a lost assertion goes
+red. See [MUTATION.md](MUTATION.md) for the full triage of
 the 10 survivors (nine are ASCII-boundary noise in the `[A-Z0-9]`
 validators; one is a near-equivalent mutant in an error-message builder).
 
@@ -109,8 +112,13 @@ go test ./internal/architecture/... -v
 | `api-lint` | Spectral against `apis/openapi.yaml`, `--fail-severity=warn` |
 | `helm-lint` | `ct lint --charts charts/facility-layout` |
 | `arch-test` | arch-go hexagonal dependency rules |
+| `mutation-fast` | gremlins over `./internal/domain`, thresholds from `.gremlins.yaml` |
+| `vuln` | `govulncheck ./...` over dependencies + the Go stdlib |
 
 Non-blocking: `mutation` (schedule / manual dispatch only).
+
+Dependency drift is watched by `.github/dependabot.yml` (gomod +
+github-actions, weekly, minor/patch grouped).
 
 Release: `docker-publish` runs only on a push to `main`, only after every
 blocking job is green, and pushes `claudioed/facility-layout:latest` plus a

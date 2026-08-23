@@ -111,6 +111,38 @@ jobs:
           DATABASE_URL: "postgres://facility:facility@localhost:5432/facility?sslmode=disable"
         run: go test -tags=integration ./... -race -count=1
 
+  mutation-fast:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install gremlins
+        run: go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+      - name: Mutation testing (fast, blocking)
+        # Subset + workers + timeout-coefficient + efficacy/mutant-coverage
+        # thresholds all come from .gremlins.yaml, so this is the exact same
+        # command as `make mutation`. Measured ~60s over the whole domain layer
+        # (99 mutants) vs 30s for the richest single package (5 mutants), which
+        # is why the fast job can afford the full ./internal/domain scope
+        # rather than narrowing. See MUTATION.md for the comparison.
+        run: gremlins unleash ./internal/domain
+
+  vuln:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+      - name: Vulnerability scan (dependencies + Go stdlib)
+        run: govulncheck ./...
+
   mutation:
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -170,7 +202,7 @@ jobs:
   docker-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [lint, test, bdd, integration, api-lint, helm-lint, arch-test]
+    needs: [lint, test, bdd, integration, mutation-fast, vuln, api-lint, helm-lint, arch-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
