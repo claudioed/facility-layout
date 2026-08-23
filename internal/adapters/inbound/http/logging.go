@@ -13,6 +13,10 @@ import (
 // request ID (so a request can be traced across the router's own
 // middleware.Recoverer output and the application logs). Responses with a
 // 5xx status are logged at Error; everything else at Info.
+//
+// The line is logged with the request's context, so when the tracing
+// middleware upstream has opened a span the record also carries its
+// trace_id/span_id — that is what joins this log line to its trace.
 func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
@@ -35,10 +39,10 @@ func RequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			}
 
 			if ww.Status() >= http.StatusInternalServerError {
-				logger.Error("http request", attrs...)
+				logger.ErrorContext(r.Context(), "http request", attrs...)
 				return
 			}
-			logger.Info("http request", attrs...)
+			logger.InfoContext(r.Context(), "http request", attrs...)
 		})
 	}
 }

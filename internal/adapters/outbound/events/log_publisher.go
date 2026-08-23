@@ -25,13 +25,15 @@ func NewLogPublisher(logger *slog.Logger) *LogPublisher {
 	return &LogPublisher{logger: logger}
 }
 
-// Publish logs the event as JSON, tagged with its CloudEvents type.
-func (p *LogPublisher) Publish(_ context.Context, event shared.DomainEvent) error {
+// Publish logs the event as JSON, tagged with its CloudEvents type. It
+// logs with ctx so the line is correlated with the span the use case that
+// raised the event is running in.
+func (p *LogPublisher) Publish(ctx context.Context, event shared.DomainEvent) error {
 	payload, err := json.Marshal(event)
 	if err != nil {
 		return err
 	}
-	p.logger.Info("domain event published",
+	p.logger.InfoContext(ctx, "domain event published",
 		"event_name", event.EventName(),
 		"event_type", event.EventType(),
 		"payload", json.RawMessage(payload),

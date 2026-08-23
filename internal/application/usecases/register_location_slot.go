@@ -2,12 +2,29 @@ package usecases
 
 import (
 	"context"
+	"errors"
 
 	"github.com/claudioed/facility-layout/internal/application/ports"
 	"github.com/claudioed/facility-layout/internal/domain/placement"
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
+)
+
+// The outcomes a slot registration attempt is counted under. They are the
+// attribute values of the ports.LocationMetrics counter, so they are part
+// of what this service publishes about itself and are named here, in the
+// layer that decides them, rather than in the telemetry adapter.
+const (
+	// OutcomeAccepted means the slot now exists on the warehouse map.
+	OutcomeAccepted = "accepted"
+	// OutcomeRejectedByPlacementRule means the chain of custody resolved
+	// but a PlacementRule forbids this LocationType in that zone — the
+	// invariant this service exists to enforce, worth its own attribute.
+	OutcomeRejectedByPlacementRule = "rejected_by_placement_rule"
+	// OutcomeRejected covers every other refusal: unknown or inactive
+	// parent, duplicate code, unknown location type, invalid capacity.
+	OutcomeRejected = "rejected"
 )
 
 // RegisterLocationSlot creates one coded leaf slot. This is the core use
@@ -24,12 +41,41 @@ type RegisterLocationSlot struct {
 	Rules         ports.PlacementRuleRepo
 	Events        ports.EventPublisher
 	Clock         ports.Clock
+	// Metrics is optional: when nil, registrations are simply not counted.
+	// The use case's decisions are identical either way.
+	Metrics ports.LocationMetrics
 }
 
 // Execute registers the slot and publishes LocationSlotRegistered.
 // capacityOverride may be the zero Capacity, meaning "use the
 // LocationType's default envelope".
+//
+// Every attempt — accepted or refused — is counted against the metrics
+// port before the result is returned.
 func (uc *RegisterLocationSlot) Execute(ctx context.Context, code shared.LocationCode, locationTypeName string, capacityOverride shared.Capacity) (*slot.LocationSlot, error) {
+	registered, err := uc.register(ctx, code, locationTypeName, capacityOverride)
+	if uc.Metrics != nil {
+		uc.Metrics.LocationSlotRegistered(ctx, registrationOutcome(err))
+	}
+	return registered, err
+}
+
+// registrationOutcome names the metric attribute a registration attempt is
+// counted under.
+func registrationOutcome(err error) string {
+	switch {
+	case err == nil:
+		return OutcomeAccepted
+	case errors.Is(err, placement.ErrPlacementRuleViolated):
+		return OutcomeRejectedByPlacementRule
+	default:
+		return OutcomeRejected
+	}
+}
+
+// register is Execute's decision logic, kept separate so the outcome of the
+// whole attempt can be observed in one place.
+func (uc *RegisterLocationSlot) register(ctx context.Context, code shared.LocationCode, locationTypeName string, capacityOverride shared.Capacity) (*slot.LocationSlot, error) {
 	existing, err := uc.Slots.FindByCode(ctx, code)
 	if err != nil {
 		return nil, err
