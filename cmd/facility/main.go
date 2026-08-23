@@ -4,10 +4,11 @@ package main
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -21,16 +22,18 @@ import (
 
 func main() {
 	if err := run(); err != nil {
-		log.Fatal(err)
+		slog.Error("service exited with error", "error", err)
+		os.Exit(1)
 	}
 }
 
 func run() error {
+	logger := newLogger(getenv("LOG_LEVEL", "info"))
+	slog.SetDefault(logger)
+
 	httpAddr := getenv("HTTP_ADDR", ":8080")
 	databaseURL := os.Getenv("DATABASE_URL")
 	migrationsPath := getenv("MIGRATIONS_PATH", "migrations")
-
-	logger := log.New(os.Stdout, "facility-layout ", log.LstdFlags)
 
 	adapters, closeAdapters, err := buildAdapters(databaseURL, migrationsPath, logger)
 	if err != nil {
@@ -40,13 +43,13 @@ func run() error {
 
 	httpServer := &http.Server{
 		Addr:              httpAddr,
-		Handler:           inboundhttp.NewRouter(newServer(adapters, memory.SystemClock{})),
+		Handler:           inboundhttp.NewRouter(newServer(adapters, memory.SystemClock{}), logger),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	errCh := make(chan error, 1)
 	go func() {
-		logger.Printf("listening on %s", httpAddr)
+		logger.Info("http server listening", "addr", httpAddr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
@@ -121,11 +124,11 @@ func newServer(a adapterSet, clock ports.Clock) *inboundhttp.Server {
 // buildAdapters wires the Postgres adapters when DATABASE_URL is set, or
 // falls back to the in-memory adapters for local development without a
 // database.
-func buildAdapters(databaseURL, migrationsPath string, logger *log.Logger) (adapterSet, func(), error) {
+func buildAdapters(databaseURL, migrationsPath string, logger *slog.Logger) (adapterSet, func(), error) {
 	noop := func() {}
 
 	if databaseURL == "" {
-		logger.Println("DATABASE_URL not set; using in-memory adapters")
+		logger.Info("database url not configured; using in-memory adapters")
 		return adapterSet{
 			sites:         memory.NewSiteRepo(),
 			zones:         memory.NewZoneRepo(),
@@ -162,4 +165,23 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// newLogger builds the process-wide structured logger: JSON to stdout, at
+// the level named by LOG_LEVEL (debug|info|warn|error, case-insensitive,
+// default info). JSON-to-stdout keeps the service container-log friendly
+// and ready to bridge into OpenTelemetry logs without a rewrite.
+func newLogger(level string) *slog.Logger {
+	var lvl slog.Level
+	switch strings.ToLower(level) {
+	case "debug":
+		lvl = slog.LevelDebug
+	case "warn", "warning":
+		lvl = slog.LevelWarn
+	case "error":
+		lvl = slog.LevelError
+	default:
+		lvl = slog.LevelInfo
+	}
+	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: lvl}))
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -65,7 +66,7 @@ func newTestServer(t *testing.T) *testServer {
 		GetZoneGrid:   &usecases.GetZoneGrid{Zones: zones, Aisles: aisles, Slots: slots},
 	}
 
-	return &testServer{t: t, handler: inboundhttp.NewRouter(s)}
+	return &testServer{t: t, handler: inboundhttp.NewRouter(s, slog.New(slog.NewTextHandler(io.Discard, nil)))}
 }
 
 type response struct {

@@ -11,6 +11,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -97,7 +98,7 @@ func (w *world) start() {
 		GetZoneGrid:   &usecases.GetZoneGrid{Zones: zones, Aisles: aisles, Slots: slots},
 	}
 
-	w.server = httptest.NewServer(inboundhttp.NewRouter(s))
+	w.server = httptest.NewServer(inboundhttp.NewRouter(s, slog.New(slog.NewTextHandler(io.Discard, nil))))
 	w.aisles = aisles
 	w.publisher = publisher
 	w.status = 0

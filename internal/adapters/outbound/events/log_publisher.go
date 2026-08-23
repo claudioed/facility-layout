@@ -9,7 +9,7 @@ package events
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 )
@@ -17,11 +17,11 @@ import (
 // LogPublisher publishes domain events by logging them as JSON. Useful for
 // local development and as a default when no broker is configured.
 type LogPublisher struct {
-	logger *log.Logger
+	logger *slog.Logger
 }
 
 // NewLogPublisher builds a LogPublisher writing to logger.
-func NewLogPublisher(logger *log.Logger) *LogPublisher {
+func NewLogPublisher(logger *slog.Logger) *LogPublisher {
 	return &LogPublisher{logger: logger}
 }
 
@@ -31,6 +31,10 @@ func (p *LogPublisher) Publish(_ context.Context, event shared.DomainEvent) erro
 	if err != nil {
 		return err
 	}
-	p.logger.Printf("event=%s type=%s payload=%s", event.EventName(), event.EventType(), payload)
+	p.logger.Info("domain event published",
+		"event_name", event.EventName(),
+		"event_type", event.EventType(),
+		"payload", json.RawMessage(payload),
+	)
 	return nil
 }

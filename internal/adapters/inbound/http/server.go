@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -44,8 +45,17 @@ type Server struct {
 // placement rule) are additive to that list: without them the Location
 // header this service is required to set on every 201 would point at a URL
 // with no representation, which is not REST maturity level 2.
-func NewRouter(s *Server) http.Handler {
+//
+// logger drives per-request structured logging; a nil logger falls back to
+// slog.Default().
+func NewRouter(s *Server, logger *slog.Logger) http.Handler {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	r := chi.NewRouter()
+	r.Use(middleware.RequestID)
+	r.Use(RequestLogger(logger))
 	r.Use(middleware.Recoverer)
 
 	r.Get("/healthz", s.handleHealthz)
