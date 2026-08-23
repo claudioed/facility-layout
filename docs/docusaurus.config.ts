@@ -121,10 +121,10 @@ const config: Config = {
         {
           title: 'Documentation',
           items: [
-            {label: 'Overview', to: '/docs/overview/'},
+            {label: 'Overview', to: '/docs/overview'},
             {label: 'Business Context', to: '/docs/business-context/domain-vision'},
             {label: 'Domain-Driven Design', to: '/docs/ddd/subdomain-classification'},
-            {label: 'API Reference', to: '/docs/api-reference/'},
+            {label: 'API Reference', to: '/docs/api-reference'},
           ],
         },
         {
