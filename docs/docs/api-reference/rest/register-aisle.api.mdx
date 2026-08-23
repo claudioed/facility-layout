@@ -1,0 +1,70 @@
+---
+id: register-aisle
+title: "Register a physical corridor inside a zone"
+description: "Adds an Aisle scoped to the given Zone. Its identity is the zone id plus the aisle code (e.g. `WH1-STOR-AMB-A07`), the first four segments of every LocationCode inside it. The SequenceHint is the aisle's walk-order position — lower comes earlier on the route — and is the concrete travel-distance input downstream WES planning consumes. An Aisle cannot be registered against an unknown or non-Active Zone. Publishes AisleRegistered."
+sidebar_label: "Register a physical corridor inside a zone"
+hide_title: true
+hide_table_of_contents: true
+api: eJztW91u3DYWfpUDokBiVxo7boq0E+zFJHEaF25seBwEm9gLc6QzIzYSqZLUOIphYK/2ARb7hH2SxTmUNNKM89MusLsBphf1RBLJ8/udQ+rTjTAlWumV0UepGAuLC+U82olyOYpIpOgSq0q6L8ZikqYOpAa+Cy4xJabgDfgMYaGWqOGN0TiCI+9Apai98jUox/c/GI2gUijzKlyQPEliUoT7OFqM4Or1iwfx9PzkLJ788iSe7D+62on4ybmyzsPcVBYcLgrU3oGZAy7R1nBsEhb/KU2ktFP0x4/gPEOY4m8V6gRfKO1bOXjZew6uZf4uNjZFC6VxiqaA3//+L8jNNVpITIEOUNpcoQWjeag1lUd+SOq0nS8xOrHoEbyVS8zjVDkvdUKylJWH1Fxr5y3KAl4fTqHMpdZKL2iYqwp0I5i09kyk1sbDDKH1AqYgF1Jp58nqlX6nzbUGY0EbHU8Sr5bYWPy0muXKZejCXGfdBKMLLSLh5cKJ8VvBN524jEQprSzQo6XrN0LLAsVYkJOOUhEJRe4upc9EJCz+VimLqRh7W+F6TJw3vr1HLo/ganp0fhhPzg4n8ZuTl4dXbC58LxOf1z1n+swifrk3WQmXZFhIMb4Rvi5JWuet0gtByniPlqT529tJ/GY//vHy2/iOX9+I20jge1mUOY3vx5u4vQyaovNPTFrTMuuKJ0Z71J5uybLMVRB171dHhrjZlM/MfsXEDyz4VnD8kXqkUS8+KdmUxYTNSg6ylJleoeP1ulFfqP43G8l73uVcY3ayuhxYfCT65pnsPyJ7DYRcra60xwVaEYm5sYX04dJ3ByIShdKqqAox3l+X4fUdSTc3ts0dCjgwpVeF+sBCDQR6dNs30R12WFsrQ5+hpcwJaheypuTitazDFJQGAqVuTjA6rym9ZsZnvLQmLd6KE42vZS0icX5t6Mdl30zNtUh45fnCs07G29vV1bM+sp6FQBuE48DJbPx12z8a6N8ufHtLy1h0pdEuRMvB/gP6swbebIQVtJCCGcqUIeBGtHGwOfCUvTLn7NV4ndeQWJQe04A1o0+m5spOe4QSbq+fdHussdvjSCMt/nSGrakKZVY7lcgcEmOtSo3tVSsZMPOuvGTs60Dwi1I1Es5LX7mP5CxV1c9F6hpmxpOj6XGDnGvlbwCPLXoOs3a9iFKMNRp9VhCCCLIN+Ey5JmuUW5nu4yvRKp/EqM9g0f8CeUZw/Jla/7XDTxebX+SQXM0xqRNyipcewWWSOpBZ3dRm522V+MrKHORiYXEhPY7gGSamKJRzpIFypFJ8LWvSbvlgBK90ivYXST7ToS1yICHHhcyhROsIjNJmQZ9JH4yPMoXCpJg7sEgzPAZtYPkAKkd9kqO4oR6z6QxaQ4WWSERifVURib6cmA5t2I1rbTgNZuvjd+iI7wBs7ps3sm6VdMM8if4kyq9c2UobcP/h/v4mYv8ic0oNjrGy8mOQMDNpHQysHFCbuZS5SuHn6cnLiBzSAEvox/vPOaS+/qptLK462IkoVCWwSfUCWixtGv+5Qhuc8xFML62Z5Vh8+0ex/ez5U3j0w/4jOA0TwDP0UuVuBIccpWitsdCWQwpDBrPJ6REFjwv/cpksNyoAr9s6vLM3rU8LbOJ7kHMzszpUqqy6ozS9OjtqbVST4Sjgg9BPJ+eHP52c/ZU2UJwnumfMiL0hIVf6HZcGRZsLDE7SGEqbRWfyJTZZ0cV35n3pxnt7vIwbzWWicuXrOJe1qfzoWlrMTOUwdrXzWLhRisu9MpcJkqdjW+UYL5XJqeiLVU58DlQmMFfvMY0gqwqpY8pqOSN4qYpC2rrtKYLyifS4MLYeVoK24AGt1IZkQI/Ws5Rnd0LdJ+rEJvi9OD8/hTAF50AEaRWCNSA1Cco5VKKFNgYHsj48OLjtguWLANeVmKi5SqBA5+QCQytMOpkkqawlTBiaIx+Yo3EJAWrnLCBnrSYi44xhmmE+J+ulqFXQh7fjHTI9P3tDOM9j3569Oj6kK/HLk3j64vD4+Rieoa6bWa4ztAgeCz43qCw+zaVzf3luzQfUl+QI2q8y6H6REZo9F3Dvz8BTWpNWCQV0GxxDI+y1VhgCdIMHaxDdCPCnMqBoYTRuV4yT0A22a66AdgCgPbR+uL+/CgoxhNmich4yucRug/wIsrrMUMe/GqWpLrYb5PtOeYylRRmT52IuIvFM1nGOvHNqepqdMSyMh4erkUrDxUZ5uhCi76ehSUNZebhZVshddFCQAkkTcQxFobuJwOXGRzAMUGPXA7NDLHyvHHd92/KwLQ/b8rAtD19feWBI1sbHc1PptL97UB45Etsbq2LwsFcM3PpjfUCmm27v5cnpYYfIP95xptPsnBKj57lKuNPn0iJzSqcavHyHmhr8UlpyP1uQsdfBrGqafMiNXqCFsLFo+nrC826adLB52vb1W+DeAvcWuL9W4O4i4KN9/WTVyDIOXitWQrkhugYgHQD8jz2Al39wlk825AcHm/A/xUJqT+fcOR248ZEOlQB6PRh2BEs6Litlonwd9d8h0okZHQFVLdyftoF2RrESIpDOSLdQv4X6LdRvof4rhfqPZcBqzS8Nzx7IHxzcdaTzf+vPTxeW7+96gTChSoHvS0wod+ZS5ZXFCJimQy5NpZfOG8sGq7RcSpUTLmwPdLbFYlsstsXi6ywWFEBWyzzmUf3twAAO28eaQG581z/n+X5w6J8YrZs3/BbnlcM7z3oYjm8jUaDPDL02Lo3zgdyVrdgzN+Gt8m3DnOGXx3bZsvgqmze6j/fYanlmnB//sP/D/oYvKNNySOntgSkpkpgB5zCprPK1GL+9jARh9dmKE3f4H1OVSO+5YT81pn3eeAaO2TOE2yISpFEY+WC0P9oUnrOJPUegYjExNuUk2N1t4jVTeuE6GlBeg7TY5XWl8lTpxe5u1GQOwkZEUIp5AhKikioHMzqkwxS4vL33QLxOOiZTnqiPPW5EptBKm2Q1ozafBf7+j3/CxKLkH0yw4StMC6FfT2TNf4/JG/zrtE9JJbZpoJqmzJUwlsCDtpSuz3g96jiuF6JTBwpZXojm3I8LpmFaSqsGgbTjFTTJFSC6gGtLMTm60BeayLwd38OxHXd3Sa3dXbgvV0yrNseihj9jfAv4nUV2ItjdJf3D0BlmcqkMGS0hUCFsbLbLPbLWlN81zSqd5m35ZFuSzGzLpE+GiiCR1nKhlXC+hlo8RsIL+aGQHua5XLBE7Ig1bT7KG+st4NcpxmxlIkK7Pu+3T27s+L/KDyjIzNNgYdoKeF6XJNO3sLs72JuTnNeZSjJ4p3TK1NlwVGtxVSjDAwwZOxFrvZp4mhtPk6wiKkc5744qIrjODDVSLX/7aMrC9qlnOxwYkzW2LqUDHylAaOUi0BRxMCeqLwXbuCGTEEanPY8N33kmRlpHFcIbmCuNzkeAMsn4VAOL0tesUI+RwrwpShRK5qYWbLLJ4/3v4v2D+MnVCFouZogSNh9Ln2RS6djM46Rynop/kmHyru3EZgFCHFo/Dr5XHvcoJvYaAjcN7zIVVFHmCl14zdt0aqQUn/covYiaA/dedkVdrpNQ91ZWp2gIEznplZu3nKzhsU3Tb1PP5Q17LbDDzxs+D01cYJJJrVzRBElpySfewYWQxUxRSxEKsm/hcs6lnqPpQgQ+t54bSxXb6ITeAPuGVmqbZkUVGIGVDDQ+k1T3YjZln05GsMwcoQt9UjVYQa062qVKCFMZcaWtx13r+/LkHJgBnyRVKXVSR4SG5CGLNC50CXSgpTQpZULTKXXNyUIxHwxx1d2PGzi9uufgidJ7U5rvlVa+55Wdx4Pmu1S0Yinp/y5TJa0XPg2QzplE0ZDH4RMB36RAUfkAnnqAvvcc76R6/f9JiRpeGOdhGuzQZGNqCoqtxlUciN51rP8UjqVeVHKBj9ljYZHmgwmeJozpgdJTQz4s+EUQxwo74nCwmXIgE2ucG+youmYY7l99bH93tbOxW+vOEWXCW8Pmg4P18n//J9RoVQLTahZ03uGmj5qhQureyDaH4S7QbqqibLfug+7hZrVF3X7R8tV+0RL6fMoi2rkqZrty/3vTtMxvmYFJLfJ4yOhmqjY1xvTMzc1MOnxl89tbuvxbhbZpfpfSKoJS7qxT5eh3KsZzmbv1j2D6EXX/rDli2IH/3qcxd1qjuSg1sUe5MIsx8X7eYb361Of28rb9DIAVDTefBnXi83BE0g7e4OTfRu2ISZJg6T/57GVvc3N6Mj0XkZg1X9oUYSdh5TWd0cjrIKgpw66PPsWhazcib2BOjEWYk/77N/LPGls=
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Register a physical corridor inside a zone"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/zones/{zoneId}/aisles"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Adds an Aisle scoped to the given Zone. Its identity is the zone id plus the aisle code (e.g. `WH1-STOR-AMB-A07`), the first four segments of every LocationCode inside it. The SequenceHint is the aisle's walk-order position — lower comes earlier on the route — and is the concrete travel-distance input downstream WES planning consumes. An Aisle cannot be registered against an unknown or non-Active Zone. Publishes AisleRegistered.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./register-aisle.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./register-aisle.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./register-aisle.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

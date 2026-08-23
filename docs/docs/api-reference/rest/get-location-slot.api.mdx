@@ -1,0 +1,70 @@
+---
+id: get-location-slot
+title: "Get one location slot"
+description: "Returns a single LocationSlot by its LocationCode, with the code exploded into its seven typed coordinate segments so a renderer does not have to re-parse it. A code that is not seven `[A-Z0-9]` segments is a 400, not a 404 — it could never identify a slot."
+sidebar_label: "Get one location slot"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get one location slot"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/locations/{locationCode}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns a single LocationSlot by its LocationCode, with the code exploded into its seven typed coordinate segments so a renderer does not have to re-parse it. A code that is not seven `[A-Z0-9]` segments is a 400, not a 404 — it could never identify a slot.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-location-slot.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-location-slot.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-location-slot.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

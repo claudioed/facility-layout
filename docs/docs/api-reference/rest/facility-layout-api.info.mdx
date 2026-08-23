@@ -1,0 +1,60 @@
+---
+id: facility-layout-api
+title: "Facility Layout API"
+description: "The system of record for **where things physically are in the building**, for the warehouse-systems platform. This bounded context owns a site's structural hierarchy — Site → Area → Zone → Aisle → Bay → Level → Position — and the coded storage slots inside it. It is the 'warehouse map' that every other context reads and none of them writes."
+sidebar_label: Introduction
+sidebar_position: 0
+hide_title: true
+custom_edit_url: null
+---
+
+import ApiLogo from "@theme/ApiLogo";
+import Heading from "@theme/Heading";
+import SchemaTabs from "@theme/SchemaTabs";
+import TabItem from "@theme/TabItem";
+import Export from "@theme/ApiExplorer/Export";
+
+<span
+  className={"theme-doc-version-badge badge badge--secondary"}
+  children={"Version: 1.0.0"}
+>
+</span>
+
+<Export
+  url={"https://raw.githubusercontent.com/claudioed/facility-layout/main/apis/openapi.yaml"}
+>
+  
+</Export>
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Facility Layout API"}
+>
+</Heading>
+
+
+
+The system of record for **where things physically are in the building**, for the warehouse-systems platform. This bounded context owns a site's structural hierarchy — Site → Area → Zone → Aisle → Bay → Level → Position — and the coded storage slots inside it. It is the "warehouse map" that every other context reads and none of them writes.
+
+Its aggregates are **Site** (a physical facility, the root of the hierarchy), **Zone** (a behavioral classification scoped to a Site, bundling the Area and Zone code segments, carrying a TemperatureClass and a Hazmat flag), **Aisle** (a physical corridor scoped to a Zone, carrying the SequenceHint that gives downstream travel-path planning its walk-order input), **LocationType** + **PlacementRule** (which kinds of slot are legal in which zones), and **LocationSlot** (the coded leaf location, whose identity IS its LocationCode).
+
+A LocationCode is a value object, never free text: seven typed segments, hyphen-joined coarsest to finest, each non-empty and `[A-Z0-9]` only — for example `WH1-STOR-AMB-A07-03-02-B`. Registering a slot is a chain-of-custody check, not a bare insert: the Site/Zone/Aisle chain the code implies must resolve to existing, Active aggregates, and the slot's LocationType must satisfy every PlacementRule applicable to its Zone. That is the mechanism which prevents "ambient product in the frozen zone" — enforced once, at registration time, rather than re-checked by every caller.
+
+Out of this service's boundary: it does NOT own occupancy, stock, reservations or inventory of any kind (that is `inventory-storage`'s Bin/StockUnit aggregates); it does not pick, pack, ship or route associates; and it never mutates another context's data. It is an Open Host Service whose domain events are its Published Language; the other four services are downstream Conformists to it.
+
+Error responses across this API use RFC 7807 (`application/problem+json`) Problem Details.
+
+
+<div
+  style={{"display":"flex","flexDirection":"column","marginBottom":"var(--ifm-paragraph-margin-bottom)"}}
+>
+  <h3
+    style={{"marginBottom":"0.25rem"}}
+  >
+    Contact
+  </h3><span>
+    Facility Layout (Generic Subdomain): 
+  </span>
+</div>
+      

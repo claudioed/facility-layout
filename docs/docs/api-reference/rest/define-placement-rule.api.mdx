@@ -1,0 +1,72 @@
+---
+id: define-placement-rule
+title: "Declare which location types are legal in which zones"
+description: "Defines a PlacementRule: a LocationType, an Effect (Allow or Deny), and a zone predicate matching on zoneCode, temperatureClass and/or hazmat. Every field set on the predicate must match for it to apply (AND semantics); unset fields are wildcards; at least one must be set."
+sidebar_label: "Declare which location types are legal in which zones"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Declare which location types are legal in which zones"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/placement-rules"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Defines a PlacementRule: a LocationType, an Effect (Allow or Deny), and a zone predicate matching on zoneCode, temperatureClass and/or hazmat. Every field set on the predicate must match for it to apply (AND semantics); unset fields are wildcards; at least one must be set.
+
+Evaluation at slot-registration time runs in order: any matching Deny rule naming the slot's LocationType rejects it (Deny always wins); if any matching Allow rule exists for the zone at all, the zone becomes an allow-list and the LocationType must be named by one of them; otherwise the zone is unconstrained. The rejection error always names the specific rule violated.
+
+The referenced LocationType must already exist. Publishes PlacementRuleDefined.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./define-placement-rule.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./define-placement-rule.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

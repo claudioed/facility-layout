@@ -1,0 +1,68 @@
+---
+id: register-location-type
+title: "Register a reusable slot classification"
+description: "Defines a LocationType — a kind of physical slot such as PalletRack, Shelf, ToteWall, BulkFloor, Staging or Amnesty (where a damaged or mismatched item is set aside during stow) — together with the default capacity envelope its slots inherit unless they override it. Both capacity dimensions must be strictly positive: a slot that can hold nothing is not a slot. Publishes LocationTypeRegistered."
+sidebar_label: "Register a reusable slot classification"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Register a reusable slot classification"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/location-types"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Defines a LocationType — a kind of physical slot such as PalletRack, Shelf, ToteWall, BulkFloor, Staging or Amnesty (where a damaged or mismatched item is set aside during stow) — together with the default capacity envelope its slots inherit unless they override it. Both capacity dimensions must be strictly positive: a slot that can hold nothing is not a slot. Publishes LocationTypeRegistered.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./register-location-type.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./register-location-type.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

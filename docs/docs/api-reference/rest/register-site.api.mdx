@@ -1,0 +1,68 @@
+---
+id: register-site
+title: "Register a physical facility"
+description: "Adds a Site to the warehouse map. The site code becomes the first segment of every LocationCode inside the facility, so it must be uppercase alphanumeric and unique across the service. Site code uniqueness is enforced here in the application layer rather than in the aggregate: a single aggregate cannot see its siblings. A newly registered Site is Active, and publishes SiteRegistered."
+sidebar_label: "Register a physical facility"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Register a physical facility"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/sites"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Adds a Site to the warehouse map. The site code becomes the first segment of every LocationCode inside the facility, so it must be uppercase alphanumeric and unique across the service. Site code uniqueness is enforced here in the application layer rather than in the aggregate: a single aggregate cannot see its siblings. A newly registered Site is Active, and publishes SiteRegistered.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./register-site.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./register-site.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

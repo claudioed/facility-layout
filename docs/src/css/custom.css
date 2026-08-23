@@ -1,0 +1,50 @@
+/**
+ * Global styles for the facility-layout documentation site.
+ * Infima variables are overridden here; the palette is the same slate/steel
+ * family the service's own SVG floor-plan renderer uses.
+ */
+
+:root {
+  --ifm-color-primary: #0b69a3;
+  --ifm-color-primary-dark: #0a5f93;
+  --ifm-color-primary-darker: #095a8b;
+  --ifm-color-primary-darkest: #084a73;
+  --ifm-color-primary-light: #0c73b3;
+  --ifm-color-primary-lighter: #0d78bb;
+  --ifm-color-primary-lightest: #d7ecfa;
+  --ifm-code-font-size: 92%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.08);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #6bb8e8;
+  --ifm-color-primary-dark: #4ea9e2;
+  --ifm-color-primary-darker: #3fa1df;
+  --ifm-color-primary-darkest: #1f86c7;
+  --ifm-color-primary-light: #88c7ee;
+  --ifm-color-primary-lighter: #97cff1;
+  --ifm-color-primary-lightest: #c4e4f8;
+  --docusaurus-highlighted-code-line-bg: rgba(255, 255, 255, 0.1);
+}
+
+/* Location codes and other inline identifiers read better slightly tighter. */
+code {
+  letter-spacing: -0.01em;
+}
+
+/* Wide reference tables (the problem-type catalogue, the event tables) should
+   scroll rather than squeeze their columns to nothing. */
+.markdown table {
+  display: table;
+  width: 100%;
+}
+
+.markdown > table + p {
+  margin-top: 1rem;
+}
+
+/* Mermaid diagrams sit better with a little breathing room. */
+.docusaurus-mermaid-container {
+  margin: 1.5rem 0;
+  text-align: center;
+}

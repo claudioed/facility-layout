@@ -18,6 +18,18 @@ domain events). It has no inbound dependency on any other service;
 
 ---
 
+## Documentation
+
+Full documentation is published at
+**<https://claudioed.github.io/facility-layout/>** — business context and
+ubiquitous language, the DDD model (subdomain classification, aggregates,
+invariants, domain events), an interactive API reference generated from
+`apis/openapi.yaml`, the ecosystem context map, and the Architecture Decision
+Records. The site source lives in [`docs/`](docs/) and deploys to GitHub Pages
+via `.github/workflows/docs.yml`.
+
+---
+
 ## The location code
 
 Not a made-up scheme — the widely-used WMS industry pattern, hyphen-joined

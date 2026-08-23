@@ -1,0 +1,1 @@
+{"parameters":[{"name":"ruleId","in":"path","required":true,"description":"The placement rule's id.","schema":{"type":"string"},"example":"RULE-HAZ-ONLY-RACK"}]}

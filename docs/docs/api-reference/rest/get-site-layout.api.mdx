@@ -1,0 +1,74 @@
+---
+id: get-site-layout
+title: "Get a site's full drawable layout"
+description: "The primary 'draw the warehouse' endpoint. Returns the whole structure of one Site as a single nested document — zones → aisles → location slots — with every slot's exploded coordinates, type, capacity and status. Zones come back ordered by id, aisles in SequenceHint **walk order** (not registration order), and slots ordered bay → level → position, so a frontend can render a floor plan directly with no client-side joining or sorting."
+sidebar_label: "Get a site's full drawable layout"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get a site's full drawable layout"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/sites/{siteCode}/layout"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The primary "draw the warehouse" endpoint. Returns the whole structure of one Site as a single nested document — zones → aisles → location slots — with every slot's exploded coordinates, type, capacity and status. Zones come back ordered by id, aisles in SequenceHint **walk order** (not registration order), and slots ordered bay → level → position, so a frontend can render a floor plan directly with no client-side joining or sorting.
+
+With `?format=svg` the identical read model is rendered server-side as a minimal SVG floor plan (one coloured band per zone, one row of rects per aisle, colour = temperature class / hazmat) that a human can curl straight into a `.svg` file and open in a browser.
+
+This is a PROJECTION assembled by querying across the aggregates, not separately stored state. It performs no writes and publishes no events.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-site-layout.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-site-layout.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-site-layout.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

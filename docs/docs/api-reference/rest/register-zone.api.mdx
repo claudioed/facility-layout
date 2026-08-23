@@ -1,0 +1,70 @@
+---
+id: register-zone
+title: "Register a behavioral zone inside a site's area"
+description: "Adds a Zone scoped to the given Site. The zone's identity is `SITE-AREA-ZONE` (e.g. `WH1-STOR-AMB`), which is exactly the first three segments of every LocationCode inside it. A Zone cannot be registered against an unknown or non-Active Site. The TemperatureClass and Hazmat flag set here are what PlacementRules match on later, so they are behavioral, not descriptive. Publishes ZoneRegistered."
+sidebar_label: "Register a behavioral zone inside a site's area"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Register a behavioral zone inside a site's area"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/sites/{siteCode}/zones"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Adds a Zone scoped to the given Site. The zone's identity is `SITE-AREA-ZONE` (e.g. `WH1-STOR-AMB`), which is exactly the first three segments of every LocationCode inside it. A Zone cannot be registered against an unknown or non-Active Site. The TemperatureClass and Hazmat flag set here are what PlacementRules match on later, so they are behavioral, not descriptive. Publishes ZoneRegistered.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./register-zone.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./register-zone.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./register-zone.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

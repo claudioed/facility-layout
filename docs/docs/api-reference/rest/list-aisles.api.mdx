@@ -1,0 +1,70 @@
+---
+id: list-aisles
+title: "List a zone's aisles in walk order"
+description: "Returns every Aisle in the given Zone, ordered by SequenceHint then aisle code — that is, in the order an associate would walk them. Answers 404 if the zone itself is unknown."
+sidebar_label: "List a zone's aisles in walk order"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List a zone's aisles in walk order"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/zones/{zoneId}/aisles"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns every Aisle in the given Zone, ordered by SequenceHint then aisle code — that is, in the order an associate would walk them. Answers 404 if the zone itself is unknown.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./list-aisles.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./list-aisles.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./list-aisles.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

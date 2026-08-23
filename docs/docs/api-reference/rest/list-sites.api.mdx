@@ -1,0 +1,60 @@
+---
+id: list-sites
+title: "List every registered site"
+description: "Returns every Site on the warehouse map, ordered by site code, including sites that have been decommissioned (their status says so). This is a read model over the Site repository; it performs no writes and publishes no events."
+sidebar_label: "List every registered site"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlWNtu20gS/ZUCXxJrSFnJzCBZBfvgOPbYgGds+ILBJjbgFlkSO2l2M11N2YwhYJ/2Axb7hfMli6omKclOJoN93RdLbrG7q0+dOn2KD4mr0augnT0ukmliNIULHZCSNCmQcq9r/i2ZJucYGm8JcIm+BX4GnIVQItwpj6VrCKFSdQrOF+ixgFkLxE/lrsAUtM1NU2i7kEGCUKoApVoizBAtFJi7qtJE2lks4HkoUXugoEJDQKolILczhstSE2gCBR5VAZUr0IBbopdAJCiPtSMdnG/fgA5Qo587XxFYB3detla2gLqZGU0lyjgu0QYaX9skTYJaUDL9kEQQbtLEI9XOElIyfUheTib8sY3MgSDicaEpyMn5hFs4MATjJE1yZwPawEuoujY6F+B3PxKv85BQXmKl+Ftoa0ymifJetUma6IAVbYy72UfMw5MU7UFdtqRzZWCucm10aHdnjTYC+x///I+A5J0L4Oby3bgYAZQavfJ52XKUHj832mPBMPBR9l2BSZpYVfFHzAkjU3vmTtARmuHJdZgUvLaLJ2Fe1TX6XBGCMnWpbFOh13nHk8bqzw2Cyr0jkiAJ/VLngh/eq6o2vPTvRy+SVRfTdzc8aiplM2aMmhkcsAGevb3sYWPm2lRoA+yjDR7h1CJv1J36u1tdMqp6jnmbGxT+IlCpOh7E2qHgmzw0XhlQi4XHhQo4hncbFcAUdxazO9WCtrB8MYYrW6D/VWkmkLI5xiowuFCGOU7MvaLbUGpLcj0UCYFHXuEN8335ArhaJQWEgUCHSH60TcVZ38uDXnKyH++apMm7rUplHqzhG+YFHWTgIsK2Wm0M6YAyMEz7sEkeyWyf2G/kY52OfsdV+miNl3+2xuWd21zj0YlWNysO7+evlfqehcbifY05oz1X2jQeU8DxYiyAFyooCs5Lehqrlkob5tyfFH/t3cxg9cM3ReAbxX5+uA+vXk9ewVlcAN5hUNrQGKIeoffOQ69eTKPA4rl3dszJp/gflarGxzUv+/YJG3Di/XmDp5Uf43xaGay7KiTTpPH6K1p1dX4MukAb9LxlgWL8YtD7e5cHv5ye/2MMx0F4bvsHNfoUrAtMfW0/iajpAIUTIQ9gEQsIjo/tzBI7Vg/8LEOoabq7K9vQuBeCzKjWNWE8XGQZtcSSOy5wuVsblSPTJ/ONwWypnVGBeTJw+nuisAdzfY9FCuW2EFFTVcq3vRrHw+cq4ML5dluYTnql5p0YEz5trP4+s1/cN6SKq3eBfjMj2oYfX35VvI4uL8/6ezcqctFEsmIRt0KYuaJl0YGeg1ux/vTy5Wogy18STKox13OdQ4VEaoEwdz6eyeV54z3ax/JvtuDoUsKCOCQLOFnrhRicKVyUaOaMXoFWx/PwD/D70Yvs4vL0PDs8f886LXM/nF+dHPBI9ttpdnF0cHI4hXdo226VuxI9QsBK/FPjcd8oor8fevcF7Q0nQlsKIpp/CQSuQKQAtQplVPDau6LJmdA9ObZB2O1R2BbYTg+STYkdAvifKoAJ5K0ymczakPdtOewf64jc5a7YkNqfJ5M1M1gQLeaSRo/zhuTRNWjJrjjFZLUSPa4wlI4t6gJZDBmm9TNpwi4BPclt0njTHXW6KyCZ0lGYvp68njyBngvLQIFLNK5m4iSrG14tb7wObTL9cMMxzZ1g2B37sDcQJ4Iaa2qSJrx9XPPFeDJ+upMwXVDlgveYO18IQUejjkultgsaPJxpQXkcaq7zcaNR2rF6w3j32WL6By7yzinPXGMLLECunvsA7s5ykTBmz2jThwz+TxRVfPQf//o37HlU8uU9V4mMaDLx21vVyucJQyffzth3czZ5DTbZHCNrCPsS57mwyTi2G5Z0gew6OoHnB6+TrT7iOolFEC2TCyX64RgsoNHGW44rymfV2fvxtb22x4HW3ooEx9GIjzUawXP11CanT6zxgMhOCqMRnz9OnWGpltoxaDkXPOtWlCLKXR1vHyUIpjBrbGH6q02w5JgFS4YFCBfMOEohV97LJajg8pGiyBwFR+pLpQLMjVpIRJKIR6fJnfe6cH4rFN5uYwPpk1hqbI5H2oaI8kIvkaBgfgSPqoLg1RJNJmJUG2Utz9WB4E6ZT5m0NqBt3QQJpr+dLtuaY/oBRqOzXojPmxjnXanzEj5pWxBjzEyQvAyXWHyA9Zh2Ujn1euEL4wIvsmaUQTUf+pcU7krHJkdcQmjh+EKC7aezLdwRYuxtjUUTvVSmQYg2KwXLjIO5Rxb3+zAF4vZQLppiI2NlW5dos49OWykw5YnVOziYa4sUUkCVl0zQDKs6tHKg2w972ftJ9rebW3DWxGLjYu50Gm6Hi2jv17fZ3uRVNvkxm7zM3t6O4bzrLyNLBD6JPi+VtpmbZ3lDgS/mvMT8U++SZlFCCH2YDj3yLnNiN5ayTB8qFXRVG40EVUOhd1F8KLzXFLRdpBAd90Z1pUOtc1DP1qgzG+JCpIKmed//bFEDOi/Mfig4yRpHxwKmBm2oMC+V1VR1JKl9bNnhOlHVTPN1Hy/L0MvlXK5hYdN1IjijnTvPt6mzOaagQtex+85I6ApT8EqEJpSK76RMoNxs3ViW0QuTTptOK9hGxxb1Wae4yrfTwZb+dnrJuivXYa1s3qashpwhjzwv3uDguJ74UC4aQmVbKRbmfATidvg96+T09hnBW213L3i9K6vDRlZ23mwZ41rzjrXiv1TqmvfzrgkIisjlmqe8kUTq0JVA1YQonnZLfZ+RdDkb3vy0RgtHjgJcRBy6aixcxdzqUiVEDARn3ZuXAk6UXTRqgW8kY3GTuWt8D2ecsyFK+45zWGkKFLkiiTjYanRo/epg3e0MRhWe336r97rdedJJSffAx1a5tG19Q/no+n/+C1p5g3HRzOKZd8SQ1Y5CpezGzBNN/Y326HXRY7fwsG4X/2/evEWHyhzjnktbdrBi5R46txdfR8m7JzZ0PPDwMFOEV96sVjz8uUHfmbal8ppVhf9bpUmJqkAv9vATtvLmIMeanaTIP79se/xGjo3g4Dp/ObhMVqv/Akgae9E=
+sidebar_class_name: "get api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List every registered site"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/sites"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Returns every Site on the warehouse map, ordered by site code, including sites that have been decommissioned (their status says so). This is a read model over the Site repository; it performs no writes and publishes no events.
+
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./list-sites.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./list-sites.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

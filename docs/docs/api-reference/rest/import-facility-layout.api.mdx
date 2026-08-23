@@ -1,0 +1,72 @@
+---
+id: import-facility-layout
+title: "Bulk-import a whole building's layout"
+description: "The bootstrap mechanism: takes a JSON array of fully-specified rows (a site/area/zone/aisle/bay/level/position address plus a LocationType) and loads a real warehouse's layout in one reproducible call, creating the Site, Zone and Aisle structure on first sight. A row naming structure that already exists reuses it and never mutates it, so an import cannot silently redefine a zone's temperature class."
+sidebar_label: "Bulk-import a whole building's layout"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Bulk-import a whole building's layout"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/locations/import"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The bootstrap mechanism: takes a JSON array of fully-specified rows (a site/area/zone/aisle/bay/level/position address plus a LocationType) and loads a real warehouse's layout in one reproducible call, creating the Site, Zone and Aisle structure on first sight. A row naming structure that already exists reuses it and never mutates it, so an import cannot silently redefine a zone's temperature class.
+
+Validation is **atomic per row** with partial success reported per row: every row is processed, and the report says exactly which rows failed and why. A 500-row export with 3 bad rows still creates the other 497.
+
+This answers 200 OK, not 201: a bulk import is a partial-success report over many rows, not the creation of one addressable resource, so there is no single Location to hand back. Publishes one FacilityLayoutImported carrying the counts, plus the usual per-entity registration events as structure is created.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./import-facility-layout.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./import-facility-layout.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

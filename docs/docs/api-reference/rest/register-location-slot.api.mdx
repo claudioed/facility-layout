@@ -1,0 +1,70 @@
+---
+id: register-location-slot
+title: "Register one coded location slot"
+description: "The core operation of this service. Registering a LocationSlot is a chain-of-custody check, not a bare insert: the Site, Zone and Aisle implied by the LocationCode's segments must all resolve to existing, Active aggregates (404 if any link is missing, 409 if one exists but is no longer Active), and the slot's LocationType must satisfy every PlacementRule applicable to its Zone (422, naming the violated rule, if not). There are no orphan slots, ever."
+sidebar_label: "Register one coded location slot"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Register one coded location slot"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/locations"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The core operation of this service. Registering a LocationSlot is a chain-of-custody check, not a bare insert: the Site, Zone and Aisle implied by the LocationCode's segments must all resolve to existing, Active aggregates (404 if any link is missing, 409 if one exists but is no longer Active), and the slot's LocationType must satisfy every PlacementRule applicable to its Zone (422, naming the violated rule, if not). There are no orphan slots, ever.
+
+`capacityOverride` is optional; omit it to inherit the LocationType's default envelope. The LocationCode is the slot's identity, so re-registering one already in use is a 409 — including when the existing slot is Decommissioned, since decommission is one-way and a retired code is never resurrected by re-registration. Publishes LocationSlotRegistered.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./register-location-slot.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./register-location-slot.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

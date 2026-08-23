@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="280" viewBox="0 0 640 280">
+  <title>WH1 facility layout</title>
+  <rect x="0" y="0" width="640" height="280" fill="#ffffff"/>
+  <text x="24" y="26" font-family="monospace" font-size="16" font-weight="bold" fill="#1f2933">WH1 — Fulfilment Centre One</text>
+  <rect x="24" y="40" width="592" height="114" fill="#f5f7fa" stroke="#7b8794" stroke-width="1" rx="6"/>
+  <text x="34" y="61" font-family="monospace" font-size="13" font-weight="bold" fill="#1f2933">WH1-STOR-AMB  (Ambient)</text>
+  <text x="34" y="86" font-family="monospace" font-size="11" fill="#3e4c59">aisle A07 (seq 7, TwoWay)</text>
+  <rect x="174" y="92" width="26" height="16" fill="#9fb3c8" stroke="#52606d" stroke-width="0.5" rx="2"><title>WH1-STOR-AMB-A07-03-01-A (PalletRack, Active)</title></rect>
+  <rect x="203" y="92" width="26" height="16" fill="#9fb3c8" stroke="#52606d" stroke-width="0.5" rx="2"><title>WH1-STOR-AMB-A07-03-02-A (PalletRack, Active)</title></rect>
+  <rect x="232" y="92" width="26" height="16" fill="#9fb3c8" stroke="#52606d" stroke-width="0.5" rx="2"><title>WH1-STOR-AMB-A07-03-02-B (PalletRack, Active)</title></rect>
+  <text x="34" y="126" font-family="monospace" font-size="11" fill="#3e4c59">aisle A08 (seq 8, TwoWay)</text>
+  <rect x="174" y="132" width="26" height="16" fill="#9fb3c8" stroke="#52606d" stroke-width="0.5" rx="2"><title>WH1-STOR-AMB-A08-01-01-A (PalletRack, Active)</title></rect>
+  <rect x="24" y="170" width="592" height="74" fill="#e0f0ff" stroke="#0b69a3" stroke-width="1" rx="6"/>
+  <text x="34" y="191" font-family="monospace" font-size="13" font-weight="bold" fill="#1f2933">WH1-STOR-FRZ  (Frozen)</text>
+  <text x="34" y="216" font-family="monospace" font-size="11" fill="#3e4c59">aisle A02 (seq 2, OneWay)</text>
+</svg>

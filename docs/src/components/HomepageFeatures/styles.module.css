@@ -1,0 +1,30 @@
+.features {
+  display: flex;
+  align-items: stretch;
+  padding: 3rem 0;
+  width: 100%;
+}
+
+.featureCard {
+  height: 100%;
+  padding: 1.25rem 1.25rem 1rem;
+  border: 1px solid var(--ifm-color-emphasis-200);
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-background-surface-color);
+}
+
+.featureTitle {
+  font-size: 1.1rem;
+  margin-bottom: 0.6rem;
+}
+
+.featureTitle a {
+  text-decoration: none;
+}
+
+.featureBody {
+  margin-bottom: 0;
+  font-size: 0.94rem;
+  line-height: 1.55;
+  color: var(--ifm-color-emphasis-800);
+}

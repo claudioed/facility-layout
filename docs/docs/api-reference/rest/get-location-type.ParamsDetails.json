@@ -1,0 +1,1 @@
+{"parameters":[{"name":"name","in":"path","required":true,"description":"The location type's name.","schema":{"type":"string"},"example":"PalletRack"}]}

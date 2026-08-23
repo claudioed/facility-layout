@@ -1,0 +1,72 @@
+---
+id: get-zone-grid
+title: "Get a zone as a 2D renderable grid"
+description: "The second 'draw the warehouse' endpoint. Returns one Zone's slots as an explicit matrix: rows are Levels, columns are (Aisle, Bay) pairs in aisle SequenceHint walk order, and `rows[i].cells` is index-aligned with `columns`. A cell is literal JSON `null` wherever the rack has a gap; otherwise it lists the Positions at that coordinate. A UI iterates rows × columns and paints — no client-side layout maths."
+sidebar_label: "Get a zone as a 2D renderable grid"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get a zone as a 2D renderable grid"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/zones/{zoneId}/grid"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+The second "draw the warehouse" endpoint. Returns one Zone's slots as an explicit matrix: rows are Levels, columns are (Aisle, Bay) pairs in aisle SequenceHint walk order, and `rows[i].cells` is index-aligned with `columns`. A cell is literal JSON `null` wherever the rack has a gap; otherwise it lists the Positions at that coordinate. A UI iterates rows × columns and paints — no client-side layout maths.
+
+Like the site layout this is a pure projection: no writes, no events.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-zone-grid.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-zone-grid.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-zone-grid.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
