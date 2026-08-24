@@ -71,6 +71,12 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'AI Ecosystem (MCP)',
+      collapsed: false,
+      items: ['mcp/governance-charter'],
+    },
+    {
+      type: 'category',
       label: 'Architecture Decision Records',
       collapsed: false,
       link: {type: 'doc', id: 'adr/index'},
@@ -81,6 +87,7 @@ const sidebars: SidebarsConfig = {
         'adr/0004-rfc-7807-from-day-one',
         'adr/0005-one-way-decommission',
         'adr/0006-partial-success-bulk-import',
+        'adr/0007-mcp-inbound-adapter',
       ],
     },
   ],
