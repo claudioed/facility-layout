@@ -38,27 +38,28 @@ func WithServiceName(name string) RouterOption {
 
 // Server holds every use case the HTTP adapter depends on.
 type Server struct {
-	RegisterSite             *usecases.RegisterSite
-	GetSite                  *usecases.GetSite
-	ListSites                *usecases.ListSites
-	RegisterZone             *usecases.RegisterZone
-	GetZone                  *usecases.GetZone
-	ListZones                *usecases.ListZones
-	RegisterAisle            *usecases.RegisterAisle
-	GetAisle                 *usecases.GetAisle
-	ListAisles               *usecases.ListAisles
-	RegisterLocationType     *usecases.RegisterLocationType
-	GetLocationType          *usecases.GetLocationType
-	ListLocationTypes        *usecases.ListLocationTypes
-	DefinePlacementRule      *usecases.DefinePlacementRule
-	GetPlacementRule         *usecases.GetPlacementRule
-	ListPlacementRules       *usecases.ListPlacementRules
-	RegisterLocationSlot     *usecases.RegisterLocationSlot
-	GetLocationSlot          *usecases.GetLocationSlot
-	DecommissionLocationSlot *usecases.DecommissionLocationSlot
-	ImportFacilityLayout     *usecases.ImportFacilityLayout
-	GetSiteLayout            *usecases.GetSiteLayout
-	GetZoneGrid              *usecases.GetZoneGrid
+	RegisterSite              *usecases.RegisterSite
+	GetSite                   *usecases.GetSite
+	ListSites                 *usecases.ListSites
+	RegisterZone              *usecases.RegisterZone
+	GetZone                   *usecases.GetZone
+	ListZones                 *usecases.ListZones
+	RegisterAisle             *usecases.RegisterAisle
+	GetAisle                  *usecases.GetAisle
+	ListAisles                *usecases.ListAisles
+	RegisterLocationType      *usecases.RegisterLocationType
+	GetLocationType           *usecases.GetLocationType
+	ListLocationTypes         *usecases.ListLocationTypes
+	DefinePlacementRule       *usecases.DefinePlacementRule
+	GetPlacementRule          *usecases.GetPlacementRule
+	ListPlacementRules        *usecases.ListPlacementRules
+	RegisterLocationSlot      *usecases.RegisterLocationSlot
+	GetLocationSlot           *usecases.GetLocationSlot
+	GetLocationClassification *usecases.GetLocationClassification
+	DecommissionLocationSlot  *usecases.DecommissionLocationSlot
+	ImportFacilityLayout      *usecases.ImportFacilityLayout
+	GetSiteLayout             *usecases.GetSiteLayout
+	GetZoneGrid               *usecases.GetZoneGrid
 }
 
 // NewRouter builds the chi router for every endpoint in CLAUDE.md's REST
@@ -137,6 +138,7 @@ func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handle
 		r.Post("/", s.handleRegisterLocationSlot)
 		r.Post("/import", s.handleImportFacilityLayout)
 		r.Get("/{locationCode}", s.handleGetLocationSlot)
+		r.Get("/{locationCode}/classification", s.handleGetLocationClassification)
 		r.Post("/{locationCode}/decommission", s.handleDecommissionLocationSlot)
 	})
 
@@ -423,6 +425,27 @@ func (s *Server) handleGetLocationSlot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toLocationSlotResponse(found))
+}
+
+// handleGetLocationClassification resolves a LocationSlot's LocationCode to
+// its parent Zone and returns that Zone's Hazmat/TemperatureClass
+// attributes — the Open Host Service / Published Language realization that
+// lets inventory-storage (and future consumers) validate placement of a
+// classified product without duplicating Zone data of its own. Zone
+// remains the sole domain aggregate that owns these attributes; this
+// handler only reads and joins.
+func (s *Server) handleGetLocationClassification(w http.ResponseWriter, r *http.Request) {
+	code, err := shared.ParseLocationCode(chi.URLParam(r, "locationCode"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	found, err := s.GetLocationClassification.Execute(r.Context(), code)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toLocationClassificationResponse(found))
 }
 
 func (s *Server) handleDecommissionLocationSlot(w http.ResponseWriter, r *http.Request) {

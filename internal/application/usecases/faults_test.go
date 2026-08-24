@@ -523,6 +523,24 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 			},
 		},
 		{
+			name: "GetLocationClassification: slot lookup fails",
+			run: func(_ *testing.T, h *harness) error {
+				uc := &usecases.GetLocationClassification{Slots: &faultySlotRepo{SlotRepo: h.slots, failFind: true}, Zones: h.zones}
+				_, err := uc.Execute(h.ctx(), code)
+				return err
+			},
+		},
+		{
+			name: "GetLocationClassification: zone lookup fails",
+			run: func(_ *testing.T, h *harness) error {
+				h.seedAmbientAisle()
+				h.mustRegisterSlot(code.String(), placement.PalletRack)
+				uc := &usecases.GetLocationClassification{Slots: h.slots, Zones: &faultyZoneRepo{ZoneRepo: h.zones, failFind: true}}
+				_, err := uc.Execute(h.ctx(), code)
+				return err
+			},
+		},
+		{
 			name: "DecommissionLocationSlot: lookup fails",
 			run: func(_ *testing.T, h *harness) error {
 				uc := &usecases.DecommissionLocationSlot{Slots: &faultySlotRepo{SlotRepo: h.slots, failFind: true}, Events: h.publisher, Clock: h.clock}

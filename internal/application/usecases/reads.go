@@ -6,6 +6,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/application/ports"
 	"github.com/claudioed/facility-layout/internal/domain/aisle"
 	"github.com/claudioed/facility-layout/internal/domain/placement"
+	"github.com/claudioed/facility-layout/internal/domain/shared"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
 )
 
@@ -79,4 +80,41 @@ func (uc *GetPlacementRule) Execute(ctx context.Context, id string) (placement.P
 		return placement.PlacementRule{}, ErrPlacementRuleNotFound
 	}
 	return *rule, nil
+}
+
+// GetLocationClassification resolves a LocationSlot's LocationCode to its
+// parent Zone and returns that Zone's Hazmat/TemperatureClass attributes —
+// the cheap, denormalized read a cross-context caller (e.g.
+// inventory-storage validating a classified SKU's stow target) needs
+// without duplicating Zone data of its own. This context remains the
+// source of truth for those attributes; this use case only joins a slot to
+// its zone, exactly the same FindByCode -> FindByID(ZoneID) resolution
+// RegisterLocationSlot's chain-of-custody check performs, composed from
+// the same two ports rather than a new query path.
+type GetLocationClassification struct {
+	Slots ports.SlotRepo
+	Zones ports.ZoneRepo
+}
+
+// Execute returns the slot's parent Zone, or ErrLocationSlotNotFound if the
+// slot itself does not exist, or ErrZoneNotFound if (in a state that
+// should be unreachable given the chain-of-custody invariant enforced at
+// registration time) its zone cannot be resolved.
+func (uc *GetLocationClassification) Execute(ctx context.Context, code shared.LocationCode) (*zone.Zone, error) {
+	s, err := uc.Slots.FindByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return nil, ErrLocationSlotNotFound
+	}
+
+	z, err := uc.Zones.FindByID(ctx, code.ZoneID())
+	if err != nil {
+		return nil, err
+	}
+	if z == nil {
+		return nil, ErrZoneNotFound
+	}
+	return z, nil
 }

@@ -57,6 +57,7 @@ updated. The history of what was believed and when is the point.
 | [0005](./0005-one-way-decommission.md) | One-way decommission, no reactivation in v1 | Accepted |
 | [0006](./0006-partial-success-bulk-import.md) | Bulk import reports partial success per row | Accepted |
 | [0007](./0007-mcp-inbound-adapter.md) | Model Context Protocol as an inbound adapter, not a new service | Accepted |
+| [0008](./0008-location-classification-read-endpoint.md) | Location classification read endpoint | Accepted |
 
 ## One record that is deliberately absent
 

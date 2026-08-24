@@ -67,6 +67,17 @@ DDD and expected here.
 | **Zone** | A behavioral classification of physical space (temperature class + hazmat) scoped to a Site. This service is its **source of truth**. | In `wes-work-planning` and the WES ubiquitous language generally, `Zone` is a unit of congestion and travel-path reasoning. Same physical thing, consumed as a read-only fact. |
 | **Location** | A coded slot's *structural identity and legality*. Nothing about contents. | In `inventory-storage`, a `Bin`/`Location` is about capacity **occupancy** and what stock sits there. |
 | **Capacity** | The static envelope of a slot's shape: max weight, max volume. | In `inventory-storage`, capacity is dynamic and consumed — how much room is left right now. |
+| **Classification** | The resolved `hazmat`/`temperatureClass` pair a LocationSlot's parent Zone carries, exposed at `GET /locations/{locationCode}/classification` for a cross-context caller to check compatibility. Always denormalized from Zone; never separately stored. | In `inventory-storage`'s emerging `ProductClassification` concept, classification is a **SKU-level** tag set (Hazmat/Fragile/TemperatureSensitive/Oversized/HighValue). Same word, different subject — this context classifies *space*, `inventory-storage` classifies *product*. The two meet at stow-time validation: a Hazmat SKU may only be placed in a hazmat-rated Zone, and a TemperatureSensitive SKU only in a Zone whose TemperatureClass matches, which is exactly what this endpoint exists to answer cheaply. |
+
+This context's endpoints are its **Open Host Service**, and the JSON shapes
+they return (`Zone`, `LocationSlot`, `LocationClassification`, and the rest
+of `apis/openapi.yaml`) are its **Published Language** — see CLAUDE.md's
+Strategic classification section. `GET
+/locations/{locationCode}/classification` is a concrete instance of that:
+rather than `inventory-storage` re-deriving or duplicating Zone's
+`Hazmat`/`TemperatureClass` fields, it reads them here, denormalized to
+exactly the shape a stow-time placement check needs. See [ADR
+0008](../adr/0008-location-classification-read-endpoint.md).
 
 ## Words this context deliberately does **not** use
 
