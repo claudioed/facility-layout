@@ -56,6 +56,7 @@ updated. The history of what was believed and when is the point.
 | [0004](./0004-rfc-7807-from-day-one.md) | RFC 7807 problem details from the first commit | Accepted |
 | [0005](./0005-one-way-decommission.md) | One-way decommission, no reactivation in v1 | Accepted |
 | [0006](./0006-partial-success-bulk-import.md) | Bulk import reports partial success per row | Accepted |
+| [0007](./0007-mcp-inbound-adapter.md) | Model Context Protocol as an inbound adapter, not a new service | Accepted |
 
 ## One record that is deliberately absent
 
@@ -70,7 +71,7 @@ nobody built. The CloudEvents `type` *naming convention* is adopted (see
 [Domain events](../ddd/domain-events.md)), but adopting a naming convention
 for consistency with four sibling repos is not an architecturally
 significant decision on its own. When a broker adapter is actually added,
-that will be the moment for ADR 0007. See
+that will be the moment for its own ADR (the next free number). See
 [Context map](../ecosystem/context-map.md).
 
 ## Proposing a new one
