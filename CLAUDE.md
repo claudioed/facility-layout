@@ -123,6 +123,12 @@ empty or contains characters other than `[A-Z0-9]`.
   structure: a Site's Zones, each Zone's Aisles, each Aisle's LocationSlots,
   assembled into a shape a UI/operator can literally render as a floor plan
   or grid. This is a first-class capability of this service (see REST API).
+- **Location classification (read)** — `GET /locations/{locationCode}/classification`
+  resolves a slot to its Zone and returns the Zone's `Hazmat`/`TemperatureClass`
+  attributes as a cheap, denormalized read. This is the concrete Published
+  Language realization of this context's Open Host Service role: `inventory-storage`
+  consumes it synchronously at stow time to enforce hazmat/temperature
+  placement rules on classified SKUs, without duplicating Zone data (ADR-0008).
 
 ## Aggregates & invariants (enforce in domain, unit-tested)
 
@@ -216,6 +222,9 @@ Structural / write side (builds up the model):
 - GET    /placement-rules                           -> list placement rules
 - POST   /locations                                -> RegisterLocationSlot
 - GET    /locations/{locationCode}                 -> get one slot
+- GET    /locations/{locationCode}/classification  -> Zone Hazmat/TemperatureClass
+  (denormalized read; Published Language for placement-rule consumers like
+  inventory-storage — see ADR-0008)
 - POST   /locations/{locationCode}/decommission    -> DecommissionLocationSlot
 - POST   /locations/import                         -> ImportFacilityLayout
   (bulk; request body is a JSON array of rows, each row fully specifying a
