@@ -88,6 +88,7 @@ const sidebars: SidebarsConfig = {
         'adr/0005-one-way-decommission',
         'adr/0006-partial-success-bulk-import',
         'adr/0007-mcp-inbound-adapter',
+        'adr/0008-location-classification-read-endpoint',
       ],
     },
   ],

@@ -31,23 +31,24 @@ type harness struct {
 	clock         *memory.FixedClock
 	metrics       *recordingMetrics
 
-	registerSite         *usecases.RegisterSite
-	getSite              *usecases.GetSite
-	listSites            *usecases.ListSites
-	registerZone         *usecases.RegisterZone
-	listZones            *usecases.ListZones
-	registerAisle        *usecases.RegisterAisle
-	listAisles           *usecases.ListAisles
-	registerLocationType *usecases.RegisterLocationType
-	listLocationTypes    *usecases.ListLocationTypes
-	definePlacementRule  *usecases.DefinePlacementRule
-	listPlacementRules   *usecases.ListPlacementRules
-	registerSlot         *usecases.RegisterLocationSlot
-	getSlot              *usecases.GetLocationSlot
-	decommissionSlot     *usecases.DecommissionLocationSlot
-	importLayout         *usecases.ImportFacilityLayout
-	getSiteLayout        *usecases.GetSiteLayout
-	getZoneGrid          *usecases.GetZoneGrid
+	registerSite              *usecases.RegisterSite
+	getSite                   *usecases.GetSite
+	listSites                 *usecases.ListSites
+	registerZone              *usecases.RegisterZone
+	listZones                 *usecases.ListZones
+	registerAisle             *usecases.RegisterAisle
+	listAisles                *usecases.ListAisles
+	registerLocationType      *usecases.RegisterLocationType
+	listLocationTypes         *usecases.ListLocationTypes
+	definePlacementRule       *usecases.DefinePlacementRule
+	listPlacementRules        *usecases.ListPlacementRules
+	registerSlot              *usecases.RegisterLocationSlot
+	getSlot                   *usecases.GetLocationSlot
+	getLocationClassification *usecases.GetLocationClassification
+	decommissionSlot          *usecases.DecommissionLocationSlot
+	importLayout              *usecases.ImportFacilityLayout
+	getSiteLayout             *usecases.GetSiteLayout
+	getZoneGrid               *usecases.GetZoneGrid
 }
 
 func newHarness(t *testing.T) *harness {
@@ -83,6 +84,7 @@ func newHarness(t *testing.T) *harness {
 		Metrics: h.metrics,
 	}
 	h.getSlot = &usecases.GetLocationSlot{Slots: h.slots}
+	h.getLocationClassification = &usecases.GetLocationClassification{Slots: h.slots, Zones: h.zones}
 	h.decommissionSlot = &usecases.DecommissionLocationSlot{Slots: h.slots, Events: h.publisher, Clock: h.clock}
 	h.importLayout = &usecases.ImportFacilityLayout{
 		Sites: h.sites, Zones: h.zones, Aisles: h.aisles, Slots: h.slots,

@@ -152,8 +152,9 @@ func newServer(a adapterSet, clock ports.Clock, locationMetrics ports.LocationMe
 			LocationTypes: a.locationTypes, Rules: a.rules, Events: a.publisher, Clock: clock,
 			Metrics: locationMetrics,
 		},
-		GetLocationSlot:          &usecases.GetLocationSlot{Slots: a.slots},
-		DecommissionLocationSlot: &usecases.DecommissionLocationSlot{Slots: a.slots, Events: a.publisher, Clock: clock},
+		GetLocationSlot:           &usecases.GetLocationSlot{Slots: a.slots},
+		GetLocationClassification: &usecases.GetLocationClassification{Slots: a.slots, Zones: a.zones},
+		DecommissionLocationSlot:  &usecases.DecommissionLocationSlot{Slots: a.slots, Events: a.publisher, Clock: clock},
 		ImportFacilityLayout: &usecases.ImportFacilityLayout{
 			Sites: a.sites, Zones: a.zones, Aisles: a.aisles, Slots: a.slots,
 			LocationTypes: a.locationTypes, Rules: a.rules, Events: a.publisher, Clock: clock,

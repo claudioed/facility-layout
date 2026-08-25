@@ -85,6 +85,13 @@ func toLocationSlotResponse(s *slot.LocationSlot) locationSlotResponse {
 	}
 }
 
+func toLocationClassificationResponse(z *zone.Zone) locationClassificationResponse {
+	return locationClassificationResponse{
+		Hazmat:           z.Hazmat(),
+		TemperatureClass: string(z.TemperatureClass()),
+	}
+}
+
 func toImportRow(row importRowRequest) usecases.ImportRow {
 	out := usecases.ImportRow{
 		SiteCode:         row.SiteCode,
