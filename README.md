@@ -181,6 +181,8 @@ migrate -source file://migrations -database "$DATABASE_URL" up
 |---|---|---|
 | `HTTP_ADDR` | `:8080` | Listen address |
 | `DATABASE_URL` | *(unset)* | Postgres DSN. Unset ⇒ in-memory adapters + log-only event publishing |
+| `EVENT_PUBLISHER` | *(unset)* | `kafka` publishes the full Published Language to `warehouse.facility.events`; unset ⇒ Postgres outbox (with a DB) or log publisher (in-memory) |
+| `KAFKA_BROKERS` | `localhost:9092` | Comma-separated broker list, used when `EVENT_PUBLISHER=kafka` |
 | `MIGRATIONS_PATH` | `migrations` | Directory of golang-migrate SQL files |
 | `LOG_LEVEL` | `info` | `debug`/`info`/`warn`/`error`, case-insensitive |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | OTel Collector, `host:port` or a full URL |
