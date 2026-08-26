@@ -84,5 +84,11 @@ single event, and every use case already calls it.
 - Trace propagation across the Kafka boundary is a known follow-up: once this
   service gains an observability package, the publisher should inject W3C trace
   context into message headers as the other services do.
+- Cold-start caveat (verified live): with `AllowAutoTopicCreation`, the first
+  publish to a not-yet-existing topic can fail while the broker creates it, and
+  because the use cases propagate a publish error, the triggering HTTP write
+  returns 500 until the topic exists. This is inherent to the estate's inline-
+  publish design (all services share it) and is mitigated in real deployments
+  by pre-creating topics rather than relying on auto-creation.
 - `github.com/segmentio/kafka-go` and `github.com/google/uuid` become direct
   dependencies (the versions already pinned across the estate).
