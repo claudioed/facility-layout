@@ -8,11 +8,15 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	"github.com/google/uuid"
+
 	inboundhttp "github.com/claudioed/facility-layout/internal/adapters/inbound/http"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/events"
+	"github.com/claudioed/facility-layout/internal/adapters/outbound/kafka"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/memory"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/postgres"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/telemetry"
@@ -76,8 +80,15 @@ func run() error {
 	httpAddr := getenv("HTTP_ADDR", ":8080")
 	databaseURL := os.Getenv("DATABASE_URL")
 	migrationsPath := getenv("MIGRATIONS_PATH", "migrations")
+	eventPublisher := getenv("EVENT_PUBLISHER", "")
+	kafkaBrokers := getenv("KAFKA_BROKERS", "localhost:9092")
 
-	adapters, closeAdapters, err := buildAdapters(databaseURL, migrationsPath, logger)
+	adapters, closeAdapters, err := buildAdapters(publisherConfig{
+		databaseURL:    databaseURL,
+		migrationsPath: migrationsPath,
+		eventPublisher: eventPublisher,
+		kafkaBrokers:   kafkaBrokers,
+	}, logger)
 	if err != nil {
 		return err
 	}
@@ -166,14 +177,46 @@ func newServer(a adapterSet, clock ports.Clock, locationMetrics ports.LocationMe
 	}
 }
 
+// publisherConfig carries the composition-root inputs that decide which
+// repositories and which EventPublisher buildAdapters wires.
+type publisherConfig struct {
+	databaseURL    string
+	migrationsPath string
+	// eventPublisher selects the outbound EventPublisher: "kafka" publishes
+	// the Published Language to the integration topic; "" (default) uses the
+	// Postgres outbox when a database is configured, or the log publisher when
+	// running purely in-memory.
+	eventPublisher string
+	kafkaBrokers   string
+}
+
 // buildAdapters wires the Postgres adapters when DATABASE_URL is set, or
 // falls back to the in-memory adapters for local development without a
-// database.
-func buildAdapters(databaseURL, migrationsPath string, logger *slog.Logger) (adapterSet, func(), error) {
+// database. The EventPublisher is chosen independently: EVENT_PUBLISHER=kafka
+// selects the Kafka integration publisher regardless of the repository choice,
+// so the Published Language reaches the broker whether the store is Postgres
+// or in-memory.
+func buildAdapters(cfg publisherConfig, logger *slog.Logger) (adapterSet, func(), error) {
 	noop := func() {}
 
-	if databaseURL == "" {
+	// The Kafka publisher, when selected, is independent of the store, so it
+	// is built once here and folded into every branch's cleanup.
+	kafkaEnabled := cfg.eventPublisher == "kafka"
+	var kafkaPublisher *kafka.Publisher
+	if kafkaEnabled {
+		brokers := strings.Split(cfg.kafkaBrokers, ",")
+		kafkaPublisher = kafka.NewPublisher(brokers, uuidLike)
+		logger.Info("event publisher configured", "publisher", "kafka", "topic", kafka.Topic, "brokers", brokers)
+	}
+
+	if cfg.databaseURL == "" {
 		logger.Info("database url not configured; using in-memory adapters")
+		pub := ports.EventPublisher(events.NewLogPublisher(logger))
+		closeFn := noop
+		if kafkaEnabled {
+			pub = kafkaPublisher
+			closeFn = func() { _ = kafkaPublisher.Close() }
+		}
 		return adapterSet{
 			sites:         memory.NewSiteRepo(),
 			zones:         memory.NewZoneRepo(),
@@ -181,17 +224,28 @@ func buildAdapters(databaseURL, migrationsPath string, logger *slog.Logger) (ada
 			slots:         memory.NewSlotRepo(),
 			locationTypes: memory.NewLocationTypeRepo(),
 			rules:         memory.NewPlacementRuleRepo(),
-			publisher:     events.NewLogPublisher(logger),
-		}, noop, nil
+			publisher:     pub,
+		}, closeFn, nil
 	}
 
-	if err := postgres.RunMigrations(databaseURL, migrationsPath); err != nil {
+	if err := postgres.RunMigrations(cfg.databaseURL, cfg.migrationsPath); err != nil {
 		return adapterSet{}, noop, err
 	}
 
-	pool, err := postgres.NewPool(context.Background(), databaseURL)
+	pool, err := postgres.NewPool(context.Background(), cfg.databaseURL)
 	if err != nil {
 		return adapterSet{}, noop, err
+	}
+
+	// Default (no EVENT_PUBLISHER) keeps the Postgres outbox; kafka overrides it.
+	pub := ports.EventPublisher(postgres.NewEventPublisher(pool))
+	closeFn := pool.Close
+	if kafkaEnabled {
+		pub = kafkaPublisher
+		closeFn = func() {
+			_ = kafkaPublisher.Close()
+			pool.Close()
+		}
 	}
 
 	return adapterSet{
@@ -201,8 +255,8 @@ func buildAdapters(databaseURL, migrationsPath string, logger *slog.Logger) (ada
 		slots:         postgres.NewSlotRepo(pool),
 		locationTypes: postgres.NewLocationTypeRepo(pool),
 		rules:         postgres.NewPlacementRuleRepo(pool),
-		publisher:     postgres.NewEventPublisher(pool),
-	}, pool.Close, nil
+		publisher:     pub,
+	}, closeFn, nil
 }
 
 func getenv(key, fallback string) string {
@@ -210,6 +264,11 @@ func getenv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// uuidLike mints the event_id stamped on each published integration event.
+func uuidLike() string {
+	return uuid.NewString()
 }
 
 // resolveServiceVersion reports this build's version: the ldflags-injected
