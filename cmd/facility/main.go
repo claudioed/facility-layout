@@ -22,6 +22,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/telemetry"
 	"github.com/claudioed/facility-layout/internal/application/ports"
 	"github.com/claudioed/facility-layout/internal/application/usecases"
+	"github.com/claudioed/facility-layout/internal/domain/shared"
 )
 
 // serviceVersion is overridable at build time with
@@ -199,14 +200,33 @@ type publisherConfig struct {
 func buildAdapters(cfg publisherConfig, logger *slog.Logger) (adapterSet, func(), error) {
 	noop := func() {}
 
-	// The Kafka publisher, when selected, is independent of the store, so it
-	// is built once here and folded into every branch's cleanup.
+	// The Kafka publishers, when selected, are independent of the store, so
+	// they are built once here and folded into every branch's cleanup. When
+	// EVENT_PUBLISHER=kafka the composition root fans out to BOTH the
+	// integration topic (warehouse.facility.events, ADR-0009) and the analytics
+	// topic (warehouse.facility.analytics, ADR-0010), so the OLTP integration
+	// stream and the analytical read-model stream stay independent.
 	kafkaEnabled := cfg.eventPublisher == "kafka"
-	var kafkaPublisher *kafka.Publisher
+	var (
+		kafkaPublisher     *kafka.Publisher
+		analyticsPublisher *kafka.AnalyticsPublisher
+		fanOut             ports.EventPublisher
+	)
 	if kafkaEnabled {
 		brokers := strings.Split(cfg.kafkaBrokers, ",")
 		kafkaPublisher = kafka.NewPublisher(brokers, uuidLike)
-		logger.Info("event publisher configured", "publisher", "kafka", "topic", kafka.Topic, "brokers", brokers)
+		analyticsPublisher = kafka.NewAnalyticsPublisher(brokers, uuidLike)
+		fanOut = fanOutPublisher{kafkaPublisher, analyticsPublisher}
+		logger.Info("event publisher configured", "publisher", "kafka",
+			"integration_topic", kafka.Topic, "analytics_topic", kafka.AnalyticsTopic, "brokers", brokers)
+	}
+	closeKafka := func() {
+		if kafkaPublisher != nil {
+			_ = kafkaPublisher.Close()
+		}
+		if analyticsPublisher != nil {
+			_ = analyticsPublisher.Close()
+		}
 	}
 
 	if cfg.databaseURL == "" {
@@ -214,8 +234,8 @@ func buildAdapters(cfg publisherConfig, logger *slog.Logger) (adapterSet, func()
 		pub := ports.EventPublisher(events.NewLogPublisher(logger))
 		closeFn := noop
 		if kafkaEnabled {
-			pub = kafkaPublisher
-			closeFn = func() { _ = kafkaPublisher.Close() }
+			pub = fanOut
+			closeFn = closeKafka
 		}
 		return adapterSet{
 			sites:         memory.NewSiteRepo(),
@@ -241,9 +261,9 @@ func buildAdapters(cfg publisherConfig, logger *slog.Logger) (adapterSet, func()
 	pub := ports.EventPublisher(postgres.NewEventPublisher(pool))
 	closeFn := pool.Close
 	if kafkaEnabled {
-		pub = kafkaPublisher
+		pub = fanOut
 		closeFn = func() {
-			_ = kafkaPublisher.Close()
+			closeKafka()
 			pool.Close()
 		}
 	}
@@ -269,6 +289,23 @@ func getenv(key, fallback string) string {
 // uuidLike mints the event_id stamped on each published integration event.
 func uuidLike() string {
 	return uuid.NewString()
+}
+
+// fanOutPublisher forwards every domain event to each wrapped EventPublisher in
+// order, so a single EVENT_PUBLISHER=kafka run publishes to BOTH the integration
+// topic and the analytics topic. It is a composition-root concern (ADR-0010): a
+// publish failure on any target aborts and is returned, so the caller sees the
+// first error rather than silently dropping a stream.
+type fanOutPublisher []ports.EventPublisher
+
+// Publish forwards event to every wrapped publisher, stopping at the first error.
+func (f fanOutPublisher) Publish(ctx context.Context, event shared.DomainEvent) error {
+	for _, p := range f {
+		if err := p.Publish(ctx, event); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // resolveServiceVersion reports this build's version: the ldflags-injected
