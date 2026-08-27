@@ -63,6 +63,28 @@ internal/
 migrations/                   golang-migrate SQL files
 ```
 
+## Integration publishing & analytics data product (ADR-0009, ADR-0010)
+
+This is an **Open Host Service**: its domain events are its Published Language.
+
+- **Integration (ADR-0009):** a `outbound/kafka` publisher emits every domain
+  event to `warehouse.facility.events`, selected by `EVENT_PUBLISHER=kafka`.
+  (The `outbound/events` log/outbox publisher remains the default when
+  `EVENT_PUBLISHER` is unset.) This service has no OTel package, so the
+  publisher is trace-free by design.
+- **Analytics (ADR-0010):** an additive read side built from this service's OWN
+  events. OLTP domain/application are NOT modified and must NOT import the
+  analytics store (arch-test enforces); `internal/analytics/report/` depends on
+  nothing. A SECOND kafka adapter publishes to `warehouse.facility.analytics`
+  (fanned alongside the integration publisher). Separate analytical Postgres
+  (`ANALYTICS_DATABASE_URL`), `migrations/analytics/`, read-only reader role.
+  Three processes: `cmd/facility` (OLTP), `cmd/facility-projector` (only writer;
+  consumes from FirstOffset, idempotent on event_id), `cmd/facility-reports`
+  (read-only reader, `GET /reports/...`); MCP report tool too.
+- **Report:** **Layout Catalog Growth & Change**, keyed per site/zone × DAY
+  bucket (slow-changing catalog): slots registered/decommissioned, zones/aisles/
+  types/rules added, bulk imports. `GET /reports/.../freshness` reports lag.
+
 ## The location-code hierarchy (INDUSTRY STANDARD — use this exact shape)
 
 This is not a made-up scheme. It is the widely-used WMS industry pattern:
