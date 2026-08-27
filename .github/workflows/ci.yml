@@ -240,6 +240,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -280,13 +281,10 @@ jobs:
             --app-version "$CHART_VERSION" \
             -d /tmp/chart-out
           echo "CHART_TGZ=/tmp/chart-out/facility-layout-${CHART_VERSION}.tgz" >> "$GITHUB_ENV"
-          echo "$DOCKERHUB_TOKEN" | helm registry login registry-1.docker.io \
-            -u "$DOCKERHUB_USERNAME" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
           helm push "/tmp/chart-out/facility-layout-${CHART_VERSION}.tgz" \
-            oci://registry-1.docker.io/claudioed
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+            oci://ghcr.io/claudioed
       - name: Create and push the git tag
         run: |
           git config user.name "github-actions[bot]"
@@ -303,5 +301,5 @@ jobs:
             Docker image: `claudioed/facility-layout:${{ steps.version.outputs.version }}`
             (also tagged `latest` and `${{ env.SHORT_SHA }}`)
 
-            Helm chart: `oci://registry-1.docker.io/claudioed/facility-layout:${{ steps.version.outputs.version }}`
+            Helm chart: `oci://ghcr.io/claudioed/facility-layout:${{ steps.version.outputs.version }}`
             (also attached below as a `.tgz`)
