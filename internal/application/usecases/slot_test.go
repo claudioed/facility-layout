@@ -193,6 +193,47 @@ func TestGetLocationSlot(t *testing.T) {
 	assertErrorIs(t, err, usecases.ErrLocationSlotNotFound)
 }
 
+func TestGetLocationClassification(t *testing.T) {
+	t.Run("resolves the slot's zone attributes", func(t *testing.T) {
+		h := newHarness(t)
+		h.mustRegisterSite("WH1", "Fulfilment Centre One")
+		h.mustRegisterZone("WH1", "STOR", "HAZ", shared.Frozen, true)
+		h.mustRegisterAisle("WH1-STOR-HAZ", "A01", 1, shared.TwoWay)
+		h.mustRegisterLocationType(placement.PalletRack, 1200, 2.4)
+		h.mustRegisterSlot("WH1-STOR-HAZ-A01-01-01-A", placement.PalletRack)
+
+		z, err := h.getLocationClassification.Execute(h.ctx(), mustCode(t, "WH1-STOR-HAZ-A01-01-01-A"))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !z.Hazmat() || z.TemperatureClass() != shared.Frozen {
+			t.Fatalf("unexpected zone attributes: hazmat=%v temperatureClass=%v", z.Hazmat(), z.TemperatureClass())
+		}
+	})
+
+	t.Run("rejects an unknown location code with ErrLocationSlotNotFound", func(t *testing.T) {
+		h := newHarness(t)
+		h.seedAmbientAisle()
+
+		_, err := h.getLocationClassification.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-99-99-Z"))
+		assertErrorIs(t, err, usecases.ErrLocationSlotNotFound)
+	})
+
+	t.Run("publishes nothing: it is a pure read model", func(t *testing.T) {
+		h := newHarness(t)
+		h.seedAmbientAisle()
+		h.mustRegisterSlot("WH1-STOR-AMB-A07-03-02-B", placement.PalletRack)
+
+		before := len(h.publishedEventNames())
+		if _, err := h.getLocationClassification.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B")); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if after := len(h.publishedEventNames()); after != before {
+			t.Fatalf("a read model must publish nothing: %d -> %d events", before, after)
+		}
+	})
+}
+
 func TestDecommissionLocationSlot(t *testing.T) {
 	t.Run("decommissions an active slot", func(t *testing.T) {
 		h := newHarness(t)

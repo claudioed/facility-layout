@@ -79,7 +79,12 @@ tags:
     description: >
       The coded leaf slots themselves — registering, reading,
       decommissioning, and bulk-importing a whole building's layout from a
-      structured export.
+      structured export. Also exposes a slot's resolved
+      hazmat/temperature-class classification (`GET
+      /locations/{locationCode}/classification`): the concrete realization
+      of this context's Open Host Service / Published Language for
+      cross-context placement validation (see `ecosystem/consuming-this-service`
+      and ADR-0008).
   - name: Layout
     description: >
       The readable, drawable projections: a Site's full nested structure
@@ -1083,6 +1088,52 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /locations/{locationCode}/classification:
+    get:
+      operationId: getLocationClassification
+      summary: Get a location slot's resolved hazmat/temperature-class attributes
+      description: >
+        Resolves a LocationSlot's LocationCode to its parent Zone (the
+        same Site/Area/Zone/Aisle chain-of-custody resolution
+        `POST /locations` performs) and returns that Zone's `hazmat` and
+        `temperatureClass` attributes. This is a deliberately cheap,
+        denormalized read: it does not return the rest of the LocationSlot
+        or Zone shape, only what a cross-context caller needs to validate
+        placement of a classified product (e.g. `inventory-storage`
+        checking that a Hazmat SKU only lands in a hazmat-rated Zone, or a
+        TemperatureSensitive SKU only lands in a Zone with a matching
+        TemperatureClass) without duplicating Zone data of its own.
+
+
+        This context remains the sole source of truth for these
+        attributes — Zone already carries `Hazmat` and `TemperatureClass`;
+        this endpoint is the concrete realization of this context's Open
+        Host Service / Published Language for that purpose (see ADR-0008).
+
+
+        A code that is not seven `[A-Z0-9]` segments is a 400, not a 404 —
+        it could never identify a slot. An unknown location code, or one
+        whose slot exists but whose zone cannot be resolved, is a 404.
+      tags: [Locations]
+      parameters:
+        - $ref: "#/components/parameters/LocationCode"
+      responses:
+        "200":
+          description: The slot's resolved classification.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationClassification"
+              example:
+                hazmat: true
+                temperatureClass: Frozen
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /locations/{locationCode}/decommission:
     post:
       operationId: decommissionLocationSlot
@@ -1577,6 +1628,23 @@ components:
           $ref: "#/components/schemas/Capacity"
         status:
           $ref: "#/components/schemas/Status"
+
+    LocationClassification:
+      type: object
+      description: >
+        The resolved subset of a LocationSlot's parent Zone attributes that
+        a cross-context caller needs to validate placement of a classified
+        product — nothing else about the slot or the zone. Zone remains the
+        source of truth for `hazmat` and `temperatureClass`; this is a
+        denormalized, read-only projection of it, not a new aggregate.
+      required: [hazmat, temperatureClass]
+      properties:
+        hazmat:
+          type: boolean
+          description: The parent Zone's Hazmat flag.
+          example: true
+        temperatureClass:
+          $ref: "#/components/schemas/TemperatureClass"
 
     RegisterLocationSlotRequest:
       type: object

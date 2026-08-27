@@ -2,7 +2,7 @@
 id: endpoints
 title: Endpoint catalogue
 sidebar_label: Endpoint catalogue
-description: All 22 operations across 17 paths, grouped by OpenAPI tag and cross-checked against the chi router.
+description: All 23 operations across 18 paths, grouped by OpenAPI tag and cross-checked against the chi router.
 ---
 
 # Endpoint catalogue
@@ -11,8 +11,8 @@ Every route the chi router mounts, grouped by its OpenAPI tag. Click any
 operation to reach the generated, interactive reference for it.
 
 :::tip[Coverage]
-**17 / 17** router paths have a corresponding `paths` entry in
-`apis/openapi.yaml`, and **22 / 22** operations are documented. The
+**18 / 18** router paths have a corresponding `paths` entry in
+`apis/openapi.yaml`, and **23 / 23** operations are documented. The
 cross-check is at the [bottom of this page](#coverage-cross-check).
 :::
 
@@ -85,12 +85,17 @@ wins; declaring any Allow rule for a zone turns that zone into an allow-list.
 ## Locations
 
 The coded leaf slots themselves — registering, reading, decommissioning, and
-bulk-importing a whole building's layout from a structured export.
+bulk-importing a whole building's layout from a structured export. Also
+exposes a slot's resolved hazmat/temperature-class classification, the
+concrete realization of this context's Open Host Service / Published
+Language for cross-context placement validation (see [ADR
+0008](../adr/0008-location-classification-read-endpoint.md)).
 
 | Method | Path | Operation | Success |
 |---|---|---|---|
 | `POST` | `/locations` | [Register a location slot](./rest/register-location-slot.api.mdx) | `201` + `Location` |
 | `GET` | `/locations/{locationCode}` | [Get one slot](./rest/get-location-slot.api.mdx) | `200` |
+| `GET` | `/locations/{locationCode}/classification` | [Get a slot's resolved hazmat/temperature classification](./rest/get-location-classification.api.mdx) | `200` |
 | `POST` | `/locations/{locationCode}/decommission` | [Decommission a slot](./rest/decommission-location-slot.api.mdx) | `204` |
 | `POST` | `/locations/import` | [Import a facility layout](./rest/import-facility-layout.api.mdx) | `200` (partial-success report) |
 
@@ -160,11 +165,12 @@ r.Route("/locations", func(r chi.Router) {
     r.Post("/", s.handleRegisterLocationSlot)
     r.Post("/import", s.handleImportFacilityLayout)
     r.Get("/{locationCode}", s.handleGetLocationSlot)
+    r.Get("/{locationCode}/classification", s.handleGetLocationClassification)
     r.Post("/{locationCode}/decommission", s.handleDecommissionLocationSlot)
 })
 ```
 
-That is **17 distinct paths** and **22 operations**, all of which appear in
+That is **18 distinct paths** and **23 operations**, all of which appear in
 `apis/openapi.yaml`:
 
 | Tag | Paths | Operations |
@@ -174,7 +180,7 @@ That is **17 distinct paths** and **22 operations**, all of which appear in
 | Aisles | 2 | 3 |
 | Location Types | 2 | 3 |
 | Placement Rules | 2 | 3 |
-| Locations | 4 | 4 |
+| Locations | 5 | 5 |
 | Layout | 2 | 2 |
 | Health | 1 | 1 |
-| **Total** | **17** | **22** |
+| **Total** | **18** | **23** |

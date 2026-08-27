@@ -56,22 +56,25 @@ updated. The history of what was believed and when is the point.
 | [0004](./0004-rfc-7807-from-day-one.md) | RFC 7807 problem details from the first commit | Accepted |
 | [0005](./0005-one-way-decommission.md) | One-way decommission, no reactivation in v1 | Accepted |
 | [0006](./0006-partial-success-bulk-import.md) | Bulk import reports partial success per row | Accepted |
+| [0007](./0007-mcp-inbound-adapter.md) | Model Context Protocol as an inbound adapter, not a new service | Accepted |
+| [0008](./0008-location-classification-read-endpoint.md) | Location classification read endpoint | Accepted |
+| [0009](./0009-kafka-integration-publisher.md) | Kafka integration publisher for the Published Language | Accepted |
+| [0010](./0010-analytical-data-product.md) | Per-service analytical data product (report) via a separate analytics topic | Accepted |
 
-## One record that is deliberately absent
+## The Kafka record that was deferred until the adapter existed
 
-The four sibling services each have an ADR covering **Kafka plus the
-CloudEvents envelope convention** for integration events. This repository
-does not, because **this service does not publish integration events**. It
-has an in-process log publisher, a buffered test publisher and a Postgres
-`events` table — no broker, no topic, no `apis/asyncapi.yaml`.
+Earlier revisions of this index noted that, unlike the sibling services, this
+repository had **no** Kafka/CloudEvents ADR — because it published no
+integration events. It had an in-process log publisher, a buffered test
+publisher, and a Postgres `events` outbox that nothing drained. Writing that
+ADR then would have documented a decision nobody had made.
 
-Writing that ADR here would document a decision nobody made and a mechanism
-nobody built. The CloudEvents `type` *naming convention* is adopted (see
-[Domain events](../ddd/domain-events.md)), but adopting a naming convention
-for consistency with four sibling repos is not an architecturally
-significant decision on its own. When a broker adapter is actually added,
-that will be the moment for ADR 0007. See
-[Context map](../ecosystem/context-map.md).
+That moment has now arrived: [ADR 0009](./0009-kafka-integration-publisher.md)
+adds the broker adapter that publishes this service's full Published Language to
+`warehouse.facility.events`, selected by `EVENT_PUBLISHER=kafka`. The
+CloudEvents `type` naming convention (see
+[Domain events](../ddd/domain-events.md)) is now backed by an actual publisher.
+See [Context map](../ecosystem/context-map.md).
 
 ## Proposing a new one
 

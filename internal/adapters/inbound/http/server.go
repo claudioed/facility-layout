@@ -7,35 +7,59 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/riandyrn/otelchi"
+	otelchimetric "github.com/riandyrn/otelchi/metric"
 
 	"github.com/claudioed/facility-layout/internal/application/usecases"
 	"github.com/claudioed/facility-layout/internal/domain/placement"
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 )
 
+// DefaultServiceName is the service name reported on this adapter's spans
+// and metrics when the composition root does not override it.
+const DefaultServiceName = "facility-layout"
+
+// RouterOption tunes NewRouter.
+type RouterOption func(*routerConfig)
+
+type routerConfig struct {
+	serviceName string
+}
+
+// WithServiceName sets the service name otelchi stamps on HTTP spans and
+// metrics — normally OTEL_SERVICE_NAME, resolved by the composition root.
+func WithServiceName(name string) RouterOption {
+	return func(cfg *routerConfig) {
+		if name != "" {
+			cfg.serviceName = name
+		}
+	}
+}
+
 // Server holds every use case the HTTP adapter depends on.
 type Server struct {
-	RegisterSite             *usecases.RegisterSite
-	GetSite                  *usecases.GetSite
-	ListSites                *usecases.ListSites
-	RegisterZone             *usecases.RegisterZone
-	GetZone                  *usecases.GetZone
-	ListZones                *usecases.ListZones
-	RegisterAisle            *usecases.RegisterAisle
-	GetAisle                 *usecases.GetAisle
-	ListAisles               *usecases.ListAisles
-	RegisterLocationType     *usecases.RegisterLocationType
-	GetLocationType          *usecases.GetLocationType
-	ListLocationTypes        *usecases.ListLocationTypes
-	DefinePlacementRule      *usecases.DefinePlacementRule
-	GetPlacementRule         *usecases.GetPlacementRule
-	ListPlacementRules       *usecases.ListPlacementRules
-	RegisterLocationSlot     *usecases.RegisterLocationSlot
-	GetLocationSlot          *usecases.GetLocationSlot
-	DecommissionLocationSlot *usecases.DecommissionLocationSlot
-	ImportFacilityLayout     *usecases.ImportFacilityLayout
-	GetSiteLayout            *usecases.GetSiteLayout
-	GetZoneGrid              *usecases.GetZoneGrid
+	RegisterSite              *usecases.RegisterSite
+	GetSite                   *usecases.GetSite
+	ListSites                 *usecases.ListSites
+	RegisterZone              *usecases.RegisterZone
+	GetZone                   *usecases.GetZone
+	ListZones                 *usecases.ListZones
+	RegisterAisle             *usecases.RegisterAisle
+	GetAisle                  *usecases.GetAisle
+	ListAisles                *usecases.ListAisles
+	RegisterLocationType      *usecases.RegisterLocationType
+	GetLocationType           *usecases.GetLocationType
+	ListLocationTypes         *usecases.ListLocationTypes
+	DefinePlacementRule       *usecases.DefinePlacementRule
+	GetPlacementRule          *usecases.GetPlacementRule
+	ListPlacementRules        *usecases.ListPlacementRules
+	RegisterLocationSlot      *usecases.RegisterLocationSlot
+	GetLocationSlot           *usecases.GetLocationSlot
+	GetLocationClassification *usecases.GetLocationClassification
+	DecommissionLocationSlot  *usecases.DecommissionLocationSlot
+	ImportFacilityLayout      *usecases.ImportFacilityLayout
+	GetSiteLayout             *usecases.GetSiteLayout
+	GetZoneGrid               *usecases.GetZoneGrid
 }
 
 // NewRouter builds the chi router for every endpoint in CLAUDE.md's REST
@@ -48,13 +72,34 @@ type Server struct {
 //
 // logger drives per-request structured logging; a nil logger falls back to
 // slog.Default().
-func NewRouter(s *Server, logger *slog.Logger) http.Handler {
+//
+// opts tune the OpenTelemetry instrumentation; without any, the router is
+// still traced and metered, under DefaultServiceName.
+func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
 
+	cfg := routerConfig{serviceName: DefaultServiceName}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
+	// Tracing goes on before request logging so the logged line already
+	// sits inside the request span and picks up its trace_id/span_id.
+	// WithChiRoutes makes the span name the route PATTERN
+	// (GET /locations/{locationCode}), not the raw path, which is what
+	// keeps span names from exploding into one per location code.
+	r.Use(otelchi.Middleware(cfg.serviceName, otelchi.WithChiRoutes(r)))
+	metricCfg := otelchimetric.NewBaseConfig(cfg.serviceName)
+	// http.server.request.duration, per the OTel HTTP semantic
+	// conventions — emitted by otelchi's metric middleware rather than
+	// hand-rolled here, so the bucket boundaries and attributes match
+	// what every other OTel HTTP instrumentation produces.
+	r.Use(otelchimetric.NewServerRequestDuration(metricCfg))
+	r.Use(otelchimetric.NewServerActiveRequests(metricCfg))
 	r.Use(RequestLogger(logger))
 	r.Use(middleware.Recoverer)
 
@@ -93,6 +138,7 @@ func NewRouter(s *Server, logger *slog.Logger) http.Handler {
 		r.Post("/", s.handleRegisterLocationSlot)
 		r.Post("/import", s.handleImportFacilityLayout)
 		r.Get("/{locationCode}", s.handleGetLocationSlot)
+		r.Get("/{locationCode}/classification", s.handleGetLocationClassification)
 		r.Post("/{locationCode}/decommission", s.handleDecommissionLocationSlot)
 	})
 
@@ -379,6 +425,27 @@ func (s *Server) handleGetLocationSlot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toLocationSlotResponse(found))
+}
+
+// handleGetLocationClassification resolves a LocationSlot's LocationCode to
+// its parent Zone and returns that Zone's Hazmat/TemperatureClass
+// attributes — the Open Host Service / Published Language realization that
+// lets inventory-storage (and future consumers) validate placement of a
+// classified product without duplicating Zone data of its own. Zone
+// remains the sole domain aggregate that owns these attributes; this
+// handler only reads and joins.
+func (s *Server) handleGetLocationClassification(w http.ResponseWriter, r *http.Request) {
+	code, err := shared.ParseLocationCode(chi.URLParam(r, "locationCode"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	found, err := s.GetLocationClassification.Execute(r.Context(), code)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toLocationClassificationResponse(found))
 }
 
 func (s *Server) handleDecommissionLocationSlot(w http.ResponseWriter, r *http.Request) {

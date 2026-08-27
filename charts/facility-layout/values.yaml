@@ -68,6 +68,22 @@ config:
   httpAddr: ":8080"
   migrationsPath: "migrations"
 
+# OpenTelemetry. The service pushes traces, metrics and logs over OTLP/gRPC
+# to a Collector; nothing is scraped from the pod. A Collector that is down
+# or absent is harmless — the exporters are non-blocking and telemetry is
+# simply dropped — so this can stay enabled in every environment.
+otel:
+  enabled: true
+  # Either "host:port" or a full URL; the service accepts both. The URL
+  # form is what the OTel SDK's own env-var convention expects.
+  endpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+  serviceName: "facility-layout"
+
+# Reported as the deployment.environment.name resource attribute on every
+# span, metric and log record, so one Collector can serve several
+# environments without them being confused for each other.
+environment: "local"
+
 database:
   url: ""
   existingSecret: ""

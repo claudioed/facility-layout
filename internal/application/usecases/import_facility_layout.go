@@ -65,6 +65,9 @@ type ImportFacilityLayout struct {
 	Rules         ports.PlacementRuleRepo
 	Events        ports.EventPublisher
 	Clock         ports.Clock
+	// Metrics is passed straight through to the per-row slot registration,
+	// so an imported slot is counted exactly like a hand-registered one.
+	Metrics ports.LocationMetrics
 }
 
 // Execute processes every row and returns the full report. It publishes the
@@ -132,6 +135,7 @@ func (uc *ImportFacilityLayout) importRow(ctx context.Context, row ImportRow) (s
 		Rules:         uc.Rules,
 		Events:        uc.Events,
 		Clock:         uc.Clock,
+		Metrics:       uc.Metrics,
 	}
 	if _, err := register.Execute(ctx, code, row.LocationType, capacityOverride); err != nil {
 		return code.String(), err

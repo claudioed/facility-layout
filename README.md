@@ -156,8 +156,9 @@ com.warehouse.wms.facility-layout.placementrule.PlacementRuleDefined
 
 ```sh
 go run ./cmd/facility
-# facility-layout 2026/08/22 09:00:00 DATABASE_URL not set; using in-memory adapters
-# facility-layout 2026/08/22 09:00:00 listening on :8080
+# {"time":"...","level":"INFO","msg":"telemetry configured","service_name":"facility-layout","service_version":"dev","environment":"local","otlp_endpoint":"localhost:4317"}
+# {"time":"...","level":"INFO","msg":"database url not configured; using in-memory adapters"}
+# {"time":"...","level":"INFO","msg":"http server listening","addr":":8080"}
 ```
 
 ### With Postgres
@@ -180,13 +181,166 @@ migrate -source file://migrations -database "$DATABASE_URL" up
 |---|---|---|
 | `HTTP_ADDR` | `:8080` | Listen address |
 | `DATABASE_URL` | *(unset)* | Postgres DSN. Unset ⇒ in-memory adapters + log-only event publishing |
+| `EVENT_PUBLISHER` | *(unset)* | `kafka` publishes the full Published Language to `warehouse.facility.events`; unset ⇒ Postgres outbox (with a DB) or log publisher (in-memory) |
+| `KAFKA_BROKERS` | `localhost:9092` | Comma-separated broker list, used when `EVENT_PUBLISHER=kafka` |
 | `MIGRATIONS_PATH` | `migrations` | Directory of golang-migrate SQL files |
+| `LOG_LEVEL` | `info` | `debug`/`info`/`warn`/`error`, case-insensitive |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | OTel Collector, `host:port` or a full URL |
+| `OTEL_SERVICE_NAME` | `facility-layout` | `service.name` on every span, metric and log record |
+| `SERVICE_VERSION` | `dev` | `service.version`; overridden by `-ldflags "-X main.serviceVersion=..."` |
+| `ENVIRONMENT` | `local` | `deployment.environment.name` |
+
+See [Observability](#observability) for what each of the OTel variables
+actually changes.
 
 ### Container
 
 ```sh
 docker build -t claudioed/facility-layout .
 docker run --rm -p 8080:8080 claudioed/facility-layout
+```
+
+### Analytics data product (Layout Catalog Growth & Change)
+
+An additive analytical read side (ADR-0010) built from this service's own domain
+events, delivered on a **separate** Kafka topic `warehouse.facility.analytics`,
+projected into a **separate** analytical database, and served read-only. It is
+three processes with one writer; the OLTP `cmd/facility` binary is unchanged
+except that with `EVENT_PUBLISHER=kafka` it now fans events out to BOTH the
+integration topic and the analytics topic.
+
+```sh
+docker compose up -d postgres kafka
+
+# OLTP service, fanning out to both warehouse.facility.events and .analytics
+export DATABASE_URL="postgres://facility:***@localhost:5432/facility?sslmode=disable"
+EVENT_PUBLISHER=kafka KAFKA_BROKERS=localhost:9092 go run ./cmd/facility
+
+# Projector (the ONLY writer): consumes the analytics topic, runs migrations/analytics,
+# projects into the analytical database.
+export ANALYTICS_DATABASE_URL="postgres://facility:***@localhost:5432/facility_analytics?sslmode=disable"
+KAFKA_BROKERS=localhost:9092 go run ./cmd/facility-projector    # admin/health on :8091
+
+# Reports (read-only reader): serves the report over REST.
+ANALYTICS_DATABASE_URL="$ANALYTICS_DATABASE_URL" go run ./cmd/facility-reports   # :8092
+
+# Query the report (bucketed by DAY):
+curl "http://localhost:8092/reports/catalog-growth?from=2026-01-01T00:00:00Z&to=2026-12-31T00:00:00Z"
+curl "http://localhost:8092/reports/catalog-growth/freshness"
+
+# Expose it as a curated MCP tool by pointing the MCP server at the reports service:
+REPORTS_BASE_URL="http://localhost:8092" MCP_READ_KEY=dev-read go run ./cmd/mcp
+```
+
+Analytics processes are trace-free (facility-layout has no OTel package for
+them). `ANALYTICS_DATABASE_URL` should point at a **separate** database with a
+**read-only role** for `cmd/facility-reports`; the reader additionally pins each
+connection to `default_transaction_read_only=on` for defence in depth. See
+[the report contract](docs/docs/analytics/catalog-growth-report.md).
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `ANALYTICS_DATABASE_URL` | *(required for projector/reports)* | Analytical Postgres DSN (separate DB from `DATABASE_URL`) |
+| `ANALYTICS_MIGRATIONS_PATH` | `migrations/analytics` | Analytical golang-migrate SQL files (projector only) |
+| `ADMIN_ADDR` | `:8091` | Projector health endpoint |
+| `HTTP_ADDR` | `:8092` | Reports REST listen address (reader) |
+| `REPORTS_BASE_URL` | *(unset)* | When set, `cmd/mcp` registers `get_facility_catalog_growth_report` calling the reports REST |
+
+
+---
+
+## Observability
+
+The service exports **all three OpenTelemetry signals — traces, metrics and
+logs — over OTLP/gRPC** to a Collector. Nothing is scraped from the pod;
+there is no `/metrics` endpoint, because the Collector owns Prometheus
+exposition for the whole fleet.
+
+### Configuration
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `localhost:4317` | Collector's gRPC receiver. Both `host:4317` and `http://host:4317` are accepted |
+| `OTEL_SERVICE_NAME` | `facility-layout` | `service.name` resource attribute |
+| `SERVICE_VERSION` | `dev` | `service.version`; a binary built with `-ldflags "-X main.serviceVersion=v1.2.3"` reports that instead |
+| `ENVIRONMENT` | `local` | `deployment.environment.name` resource attribute |
+| `LOG_LEVEL` | `info` | Minimum level for both the stdout JSON logs and the OTLP log export |
+
+A Collector is **expected** at `OTEL_EXPORTER_OTLP_ENDPOINT`, but is never
+required: the OTLP exporters are non-blocking, so with nothing listening the
+service starts, serves and shuts down normally and the telemetry is simply
+dropped. In the `warehouse-infra` kind cluster the Helm chart points this at
+the in-cluster Collector Service
+(`otel-collector.observability.svc.cluster.local:4317`).
+
+### What gets exported
+
+**Traces**
+
+- One server span per HTTP request, via
+  [`otelchi`](https://github.com/riandyrn/otelchi). Span names are the chi
+  **route pattern** (`GET /locations/{locationCode}`), never the raw path,
+  so one span name does not become one span name per location code.
+- A child span per database call, via
+  [`otelpgx`](https://github.com/exaring/otelpgx) installed as the pgxpool
+  tracer. The SQL statement is recorded normalized — no literal values.
+- W3C `traceparent` is both extracted from inbound requests and injected
+  into outbound context, so a call arriving from another warehouse-systems
+  service continues that service's trace rather than starting a new one.
+
+**Metrics**
+
+| Instrument | Kind | Source |
+|---|---|---|
+| `http.server.request.duration` | histogram (seconds) | otelchi, per OTel HTTP semantic conventions |
+| `http.server.active_requests` | up/down counter | otelchi |
+| `facility.location_slot.registrations` | counter, attribute `outcome` | **this service's business metric** |
+| `go.*` (goroutines, GC, memory) | various | `contrib/instrumentation/runtime` |
+| `pgxpool_*` | various | otelpgx pool stats (only with `DATABASE_URL` set) |
+
+`facility.location_slot.registrations` is recorded in the
+`RegisterLocationSlot` **use case**, not in the HTTP handler, so a slot
+created by `POST /locations/import` counts exactly like one created by
+`POST /locations`. Its `outcome` attribute is one of:
+
+- `accepted` — the slot now exists on the map
+- `rejected_by_placement_rule` — the chain of custody resolved but a
+  `PlacementRule` forbids that `LocationType` in that zone; this is the
+  invariant the service exists to enforce, so it gets its own value
+- `rejected` — any other refusal (unknown/inactive parent, duplicate code,
+  unknown location type, invalid capacity)
+
+**Logs**
+
+Structured `log/slog` JSON to stdout *and* the same records bridged to OTLP
+via `contrib/bridges/otelslog`. Any record emitted inside an active span
+also carries `trace_id` and `span_id`, which is what joins a log line to its
+trace:
+
+```json
+{"time":"2026-08-23T20:03:23.32Z","level":"INFO","msg":"http request","method":"POST","path":"/locations","status":201,"duration_ms":0,"bytes":302,"request_id":"...","trace_id":"69b0970c53414467b350b36f7a1b04ac","span_id":"27d2246a94c0462b"}
+```
+
+The OpenTelemetry SDK's own diagnostics are bridged onto `slog` too, so the
+process never emits a non-JSON log line.
+
+### Layering
+
+Everything OTel lives in `internal/adapters/outbound/telemetry` — an
+outbound adapter, the same tier as `outbound/postgres`. The domain layer is
+untouched. The application layer knows only about the
+`ports.LocationMetrics` interface; a use case with no recorder wired behaves
+identically, so telemetry is never load-bearing.
+
+### Trying it locally
+
+```sh
+# No collector running: the service must still work.
+OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:14317 \
+  ENVIRONMENT=smoketest SERVICE_VERSION=smoke-1 go run ./cmd/facility
+
+curl -s localhost:8080/healthz
+# ... and the log line for that request carries trace_id/span_id.
 ```
 
 ---
@@ -665,5 +819,22 @@ helm install facility-layout ./charts/facility-layout \
   --set image.repository=claudioed/facility-layout \
   --set database.url="postgres://facility:facility@postgres:5432/facility?sslmode=disable"
 ```
+
+Telemetry is a first-class `otel` values block (see
+[Observability](#observability)), on by default and safe to leave on even
+where no Collector is deployed:
+
+```yaml
+otel:
+  enabled: true
+  endpoint: "http://otel-collector.observability.svc.cluster.local:4317"
+  serviceName: "facility-layout"
+
+environment: "local"     # deployment.environment.name
+```
+
+`SERVICE_VERSION` is taken from `.Values.image.tag`, falling back to the
+chart's `appVersion`, so a deployed pod always reports the image it is
+actually running.
 
 Linted in CI with `ct lint --charts charts/facility-layout`.

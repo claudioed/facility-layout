@@ -74,3 +74,11 @@ type EventPublisher interface {
 type Clock interface {
 	Now() time.Time
 }
+
+// LocationMetrics records the business-level telemetry this bounded context
+// owns: how many coded location slots were registered, and how many were
+// turned away and why. Implemented by the telemetry adapter; a use case
+// with no recorder wired simply records nothing.
+type LocationMetrics interface {
+	LocationSlotRegistered(ctx context.Context, outcome string)
+}

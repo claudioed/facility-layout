@@ -142,6 +142,17 @@ type locationSlotResponse struct {
 	Status       string              `json:"status"`
 }
 
+// locationClassificationResponse is the resolved subset of a slot's parent
+// Zone that a cross-context caller (inventory-storage validating a
+// classified SKU's stow target) needs to validate placement, without
+// giving that caller the rest of the Zone or LocationSlot shape. This
+// context remains the source of truth for these attributes — Zone already
+// carries them; this DTO is a denormalized read, not a new aggregate.
+type locationClassificationResponse struct {
+	Hazmat           bool   `json:"hazmat"`
+	TemperatureClass string `json:"temperatureClass"`
+}
+
 type importRowResultResponse struct {
 	Index        int    `json:"index"`
 	LocationCode string `json:"locationCode"`

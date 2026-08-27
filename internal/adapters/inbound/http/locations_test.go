@@ -170,6 +170,92 @@ func TestLocationSlotEndpoints(t *testing.T) {
 	})
 }
 
+func TestLocationClassificationEndpoint(t *testing.T) {
+	t.Run("returns hazmat=true for a hazmat zone", func(t *testing.T) {
+		ts := newTestServer(t)
+		ts.seedSite()
+		ts.seedZone("STOR", "HAZ", "Ambient", true)
+		ts.seedAisle("WH1-STOR-HAZ", "A01", 1, "TwoWay")
+		ts.seedLocationType("PalletRack", 1200, 2.4)
+		ts.seedSlot("WH1-STOR-HAZ-A01-01-01-A", "PalletRack")
+
+		res := ts.do(http.MethodGet, "/locations/WH1-STOR-HAZ-A01-01-01-A/classification", nil).assertStatus(t, http.StatusOK)
+
+		var got struct {
+			Hazmat           bool   `json:"hazmat"`
+			TemperatureClass string `json:"temperatureClass"`
+		}
+		res.decode(t, &got)
+		if !got.Hazmat || got.TemperatureClass != "Ambient" {
+			t.Fatalf("unexpected classification %+v", got)
+		}
+	})
+
+	t.Run("returns hazmat=false for a non-hazmat zone", func(t *testing.T) {
+		ts := newTestServer(t)
+		ts.seedStorageAisle()
+		ts.seedSlot("WH1-STOR-AMB-A07-03-02-B", "PalletRack")
+
+		res := ts.do(http.MethodGet, "/locations/WH1-STOR-AMB-A07-03-02-B/classification", nil).assertStatus(t, http.StatusOK)
+
+		var got struct {
+			Hazmat           bool   `json:"hazmat"`
+			TemperatureClass string `json:"temperatureClass"`
+		}
+		res.decode(t, &got)
+		if got.Hazmat || got.TemperatureClass != "Ambient" {
+			t.Fatalf("unexpected classification %+v", got)
+		}
+	})
+
+	t.Run("reports each temperature class", func(t *testing.T) {
+		tests := []struct {
+			zoneCode         string
+			temperatureClass string
+			locationCode     string
+		}{
+			{zoneCode: "AMB", temperatureClass: "Ambient", locationCode: "WH1-STOR-AMB-A01-01-01-A"},
+			{zoneCode: "CHL", temperatureClass: "Chilled", locationCode: "WH1-STOR-CHL-A01-01-01-A"},
+			{zoneCode: "FRZ", temperatureClass: "Frozen", locationCode: "WH1-STOR-FRZ-A01-01-01-A"},
+		}
+		for _, tc := range tests {
+			t.Run(tc.temperatureClass, func(t *testing.T) {
+				ts := newTestServer(t)
+				ts.seedSite()
+				ts.seedZone("STOR", tc.zoneCode, tc.temperatureClass, false)
+				ts.seedAisle("WH1-STOR-"+tc.zoneCode, "A01", 1, "TwoWay")
+				ts.seedLocationType("PalletRack", 1200, 2.4)
+				ts.seedSlot(tc.locationCode, "PalletRack")
+
+				res := ts.do(http.MethodGet, "/locations/"+tc.locationCode+"/classification", nil).assertStatus(t, http.StatusOK)
+
+				var got struct {
+					TemperatureClass string `json:"temperatureClass"`
+				}
+				res.decode(t, &got)
+				if got.TemperatureClass != tc.temperatureClass {
+					t.Fatalf("expected %q, got %q", tc.temperatureClass, got.TemperatureClass)
+				}
+			})
+		}
+	})
+
+	t.Run("404s for an unknown location code", func(t *testing.T) {
+		ts := newTestServer(t)
+		ts.seedStorageAisle()
+
+		ts.do(http.MethodGet, "/locations/WH1-STOR-AMB-A07-99-99-Z/classification", nil).
+			assertProblem(t, http.StatusNotFound, "location-slot-not-found")
+	})
+
+	t.Run("400s for a malformed location code", func(t *testing.T) {
+		ts := newTestServer(t)
+
+		ts.do(http.MethodGet, "/locations/NOT-A-CODE/classification", nil).
+			assertProblem(t, http.StatusBadRequest, "malformed-location-code")
+	})
+}
+
 func TestDecommissionEndpoint(t *testing.T) {
 	t.Run("returns 204 and flips the status", func(t *testing.T) {
 		ts := newTestServer(t)

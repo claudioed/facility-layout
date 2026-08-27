@@ -56,8 +56,9 @@ func newTestServer(t *testing.T) *testServer {
 			Sites: sites, Zones: zones, Aisles: aisles, Slots: slots,
 			LocationTypes: locationTypes, Rules: rules, Events: publisher, Clock: clock,
 		},
-		GetLocationSlot:          &usecases.GetLocationSlot{Slots: slots},
-		DecommissionLocationSlot: &usecases.DecommissionLocationSlot{Slots: slots, Events: publisher, Clock: clock},
+		GetLocationSlot:           &usecases.GetLocationSlot{Slots: slots},
+		GetLocationClassification: &usecases.GetLocationClassification{Slots: slots, Zones: zones},
+		DecommissionLocationSlot:  &usecases.DecommissionLocationSlot{Slots: slots, Events: publisher, Clock: clock},
 		ImportFacilityLayout: &usecases.ImportFacilityLayout{
 			Sites: sites, Zones: zones, Aisles: aisles, Slots: slots,
 			LocationTypes: locationTypes, Rules: rules, Events: publisher, Clock: clock,

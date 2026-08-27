@@ -63,6 +63,28 @@ internal/
 migrations/                   golang-migrate SQL files
 ```
 
+## Integration publishing & analytics data product (ADR-0009, ADR-0010)
+
+This is an **Open Host Service**: its domain events are its Published Language.
+
+- **Integration (ADR-0009):** a `outbound/kafka` publisher emits every domain
+  event to `warehouse.facility.events`, selected by `EVENT_PUBLISHER=kafka`.
+  (The `outbound/events` log/outbox publisher remains the default when
+  `EVENT_PUBLISHER` is unset.) This service has no OTel package, so the
+  publisher is trace-free by design.
+- **Analytics (ADR-0010):** an additive read side built from this service's OWN
+  events. OLTP domain/application are NOT modified and must NOT import the
+  analytics store (arch-test enforces); `internal/analytics/report/` depends on
+  nothing. A SECOND kafka adapter publishes to `warehouse.facility.analytics`
+  (fanned alongside the integration publisher). Separate analytical Postgres
+  (`ANALYTICS_DATABASE_URL`), `migrations/analytics/`, read-only reader role.
+  Three processes: `cmd/facility` (OLTP), `cmd/facility-projector` (only writer;
+  consumes from FirstOffset, idempotent on event_id), `cmd/facility-reports`
+  (read-only reader, `GET /reports/...`); MCP report tool too.
+- **Report:** **Layout Catalog Growth & Change**, keyed per site/zone × DAY
+  bucket (slow-changing catalog): slots registered/decommissioned, zones/aisles/
+  types/rules added, bulk imports. `GET /reports/.../freshness` reports lag.
+
 ## The location-code hierarchy (INDUSTRY STANDARD — use this exact shape)
 
 This is not a made-up scheme. It is the widely-used WMS industry pattern:
@@ -123,6 +145,12 @@ empty or contains characters other than `[A-Z0-9]`.
   structure: a Site's Zones, each Zone's Aisles, each Aisle's LocationSlots,
   assembled into a shape a UI/operator can literally render as a floor plan
   or grid. This is a first-class capability of this service (see REST API).
+- **Location classification (read)** — `GET /locations/{locationCode}/classification`
+  resolves a slot to its Zone and returns the Zone's `Hazmat`/`TemperatureClass`
+  attributes as a cheap, denormalized read. This is the concrete Published
+  Language realization of this context's Open Host Service role: `inventory-storage`
+  consumes it synchronously at stow time to enforce hazmat/temperature
+  placement rules on classified SKUs, without duplicating Zone data (ADR-0008).
 
 ## Aggregates & invariants (enforce in domain, unit-tested)
 
@@ -216,6 +244,9 @@ Structural / write side (builds up the model):
 - GET    /placement-rules                           -> list placement rules
 - POST   /locations                                -> RegisterLocationSlot
 - GET    /locations/{locationCode}                 -> get one slot
+- GET    /locations/{locationCode}/classification  -> Zone Hazmat/TemperatureClass
+  (denormalized read; Published Language for placement-rule consumers like
+  inventory-storage — see ADR-0008)
 - POST   /locations/{locationCode}/decommission    -> DecommissionLocationSlot
 - POST   /locations/import                         -> ImportFacilityLayout
   (bulk; request body is a JSON array of rows, each row fully specifying a
