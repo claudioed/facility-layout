@@ -30,6 +30,10 @@ type Deps struct {
 	GetZoneGrid *usecases.GetZoneGrid
 	// ListSites is the existing read use case behind list_sites.
 	ListSites *usecases.ListSites
+	// Reports is the client of the facility-reports REST service, backing the
+	// curated get_facility_catalog_growth_report tool. When nil, that tool is
+	// not registered (an MCP deployment without the reports service).
+	Reports ReportsClient
 }
 
 // --- get_site_layout ----------------------------------------------------------
@@ -117,6 +121,10 @@ func (d Deps) registerTools(server *mcp.Server, scopeOf func(context.Context) Sc
 		Description: "Return one zone's slots as a 2D grid: rows are levels, columns are (aisle, bay) pairs in walk order, each cell holds the location codes at that coordinate. Use it to reason about a single zone's rack layout in detail.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
 	}, d.getZoneGrid)
+
+	// Curated read-only data-product tool, registered only when the reports
+	// client is configured (ADR-0010).
+	d.registerReportTool(server, scopeOf)
 }
 
 // addTool registers one scope-gated tool. It centralises the cross-cutting
