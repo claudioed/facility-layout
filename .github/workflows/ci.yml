@@ -199,13 +199,62 @@ jobs:
       - name: Architecture fitness tests
         run: go test ./internal/architecture/... -v
 
+  # Shift-left container scan: builds the image (no push) on every push AND
+  # every PR, so a vulnerable base image or dependency is caught before
+  # merge, not just at publish time. Blocks on CRITICAL/HIGH with a known
+  # fix; findings also land in the repo's Security tab (SARIF) regardless
+  # of pass/fail so history is visible even when nothing blocks.
+  trivy-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image (local only, not pushed)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: facility-layout:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy scan (SARIF, always uploaded)
+        uses: aquasecurity/trivy-action@v0.36.0
+        if: always()
+        with:
+          image-ref: 'facility-layout:scan'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: true
+      - name: Upload Trivy SARIF to Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      - name: "Trivy scan (blocking gate: CRITICAL/HIGH with a fix available)"
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: 'facility-layout:scan'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
   docker-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [lint, test, bdd, integration, mutation-fast, vuln, api-lint, helm-lint, arch-test]
+    needs: [lint, test, bdd, integration, mutation-fast, vuln, api-lint, helm-lint, arch-test, trivy-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
+      id-token: write   # cosign keyless signing (Fulcio/Rekor via GitHub OIDC)
     steps:
       - uses: actions/checkout@v7
       - name: Set image tag (short SHA)
@@ -217,6 +266,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -227,6 +277,30 @@ jobs:
             claudioed/facility-layout:${{ env.SHORT_SHA }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+      - name: Sign the published image (keyless, GitHub OIDC identity)
+        run: |
+          cosign sign --yes \
+            claudioed/facility-layout@${{ steps.build.outputs.digest }}
+      - name: Generate SBOM (SPDX) for the published image
+        uses: anchore/sbom-action@v0
+        with:
+          image: claudioed/facility-layout@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+      - name: Attest the image with its SBOM (keyless)
+        run: |
+          cosign attest --yes \
+            --predicate sbom.spdx.json \
+            --type spdxjson \
+            claudioed/facility-layout@${{ steps.build.outputs.digest }}
+      - name: Upload SBOM as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
+          retention-days: 90
 
   # Cuts a GitHub Release (+ matching git tag + versioned Docker tag) on every
   # merge to main. Runs only after docker-publish actually succeeded, so a
