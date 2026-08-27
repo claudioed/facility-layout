@@ -11,11 +11,13 @@ linters:
     - misspell
     - unconvert
     - gocritic
+    - gosec
   exclusions:
     rules:
       - path: _test\.go
         linters:
           - errcheck
+          - gosec
 formatters:
   enable:
     - gofmt

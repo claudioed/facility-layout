@@ -19,8 +19,12 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/facility ./cmd/facility
 
 # --- runtime stage ---
-FROM alpine:3.20
-RUN apk add --no-cache ca-certificates=20260413-r0 && \
+FROM alpine:3.24
+# apk upgrade picks up any CVE fixes published to the 3.24 branch since the
+# base image was last rebuilt (e.g. openssl point releases); ca-certificates
+# is still pinned explicitly for a reproducible, auditable base layer.
+RUN apk upgrade --no-cache && \
+    apk add --no-cache ca-certificates=20260611-r0 && \
     addgroup -g 1000 -S app && adduser -u 1000 -S app -G app
 WORKDIR /app
 COPY --from=build --chown=app:app /out/facility ./facility
