@@ -1,0 +1,39 @@
+# Version control / CI
+.git
+.github
+.gitignore
+
+# Docker itself (no need to ship these into the build context)
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Docs, task notes, and other non-runtime artifacts that shouldn't
+# invalidate the Docker build cache when edited
+*.md
+docs/
+charts/
+
+# Tool configs irrelevant to `go build`
+.golangci.yml
+.gremlins.yaml
+.spectral*.yaml
+lefthook.yml
+
+# Local dev / test output
+bin/
+coverage.out
+coverage.html
+*.test
+*.out
+.env
+.env.*
+
+# Editors / OS cruft
+.vscode/
+.idea/
+.DS_Store
+
+# Repo-local worktrees / e2e harness (not needed to build this service's image)
+.worktrees/
+e2e-tests/
