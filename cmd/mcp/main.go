@@ -75,10 +75,18 @@ func run() error {
 	// The MCP adapter reuses the SAME read use cases the HTTP adapter uses:
 	// GetSiteLayout, GetZoneGrid and ListSites, each over the same repos. No
 	// write use case is wired — this context's map is consumed, not mutated.
+	//
+	// When REPORTS_BASE_URL is set, the curated catalog-growth report tool is
+	// additionally wired to call the facility-reports REST service (ADR-0010);
+	// when it is unset the tool is simply not registered.
 	deps := inboundmcp.Deps{
 		GetSiteLayout: &usecases.GetSiteLayout{Sites: adapters.sites, Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots},
 		GetZoneGrid:   &usecases.GetZoneGrid{Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots},
 		ListSites:     &usecases.ListSites{Sites: adapters.sites},
+	}
+	if reportsURL := os.Getenv("REPORTS_BASE_URL"); reportsURL != "" {
+		deps.Reports = inboundmcp.NewReportsRESTClient(reportsURL, nil)
+		logger.Info("catalog-growth report tool wired", "reports_base_url", reportsURL)
 	}
 	server := inboundmcp.NewServer(deps)
 
