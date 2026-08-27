@@ -200,6 +200,52 @@ docker build -t claudioed/facility-layout .
 docker run --rm -p 8080:8080 claudioed/facility-layout
 ```
 
+### Analytics data product (Layout Catalog Growth & Change)
+
+An additive analytical read side (ADR-0010) built from this service's own domain
+events, delivered on a **separate** Kafka topic `warehouse.facility.analytics`,
+projected into a **separate** analytical database, and served read-only. It is
+three processes with one writer; the OLTP `cmd/facility` binary is unchanged
+except that with `EVENT_PUBLISHER=kafka` it now fans events out to BOTH the
+integration topic and the analytics topic.
+
+```sh
+docker compose up -d postgres kafka
+
+# OLTP service, fanning out to both warehouse.facility.events and .analytics
+export DATABASE_URL="postgres://facility:***@localhost:5432/facility?sslmode=disable"
+EVENT_PUBLISHER=kafka KAFKA_BROKERS=localhost:9092 go run ./cmd/facility
+
+# Projector (the ONLY writer): consumes the analytics topic, runs migrations/analytics,
+# projects into the analytical database.
+export ANALYTICS_DATABASE_URL="postgres://facility:***@localhost:5432/facility_analytics?sslmode=disable"
+KAFKA_BROKERS=localhost:9092 go run ./cmd/facility-projector    # admin/health on :8091
+
+# Reports (read-only reader): serves the report over REST.
+ANALYTICS_DATABASE_URL="$ANALYTICS_DATABASE_URL" go run ./cmd/facility-reports   # :8092
+
+# Query the report (bucketed by DAY):
+curl "http://localhost:8092/reports/catalog-growth?from=2026-01-01T00:00:00Z&to=2026-12-31T00:00:00Z"
+curl "http://localhost:8092/reports/catalog-growth/freshness"
+
+# Expose it as a curated MCP tool by pointing the MCP server at the reports service:
+REPORTS_BASE_URL="http://localhost:8092" MCP_READ_KEY=dev-read go run ./cmd/mcp
+```
+
+Analytics processes are trace-free (facility-layout has no OTel package for
+them). `ANALYTICS_DATABASE_URL` should point at a **separate** database with a
+**read-only role** for `cmd/facility-reports`; the reader additionally pins each
+connection to `default_transaction_read_only=on` for defence in depth. See
+[the report contract](docs/docs/analytics/catalog-growth-report.md).
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `ANALYTICS_DATABASE_URL` | *(required for projector/reports)* | Analytical Postgres DSN (separate DB from `DATABASE_URL`) |
+| `ANALYTICS_MIGRATIONS_PATH` | `migrations/analytics` | Analytical golang-migrate SQL files (projector only) |
+| `ADMIN_ADDR` | `:8091` | Projector health endpoint |
+| `HTTP_ADDR` | `:8092` | Reports REST listen address (reader) |
+| `REPORTS_BASE_URL` | *(unset)* | When set, `cmd/mcp` registers `get_facility_catalog_growth_report` calling the reports REST |
+
 
 ---
 

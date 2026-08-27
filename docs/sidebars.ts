@@ -77,6 +77,12 @@ const sidebars: SidebarsConfig = {
     },
     {
       type: 'category',
+      label: 'Analytics (Data Product)',
+      collapsed: false,
+      items: ['analytics/catalog-growth-report'],
+    },
+    {
+      type: 'category',
       label: 'Architecture Decision Records',
       collapsed: false,
       link: {type: 'doc', id: 'adr/index'},
@@ -90,6 +96,7 @@ const sidebars: SidebarsConfig = {
         'adr/0007-mcp-inbound-adapter',
         'adr/0008-location-classification-read-endpoint',
         'adr/0009-kafka-integration-publisher',
+        'adr/0010-analytical-data-product',
       ],
     },
   ],

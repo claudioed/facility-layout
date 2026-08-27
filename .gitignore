@@ -3,6 +3,12 @@ bin/
 *.test
 *.out
 
+# Compiled binaries built at the repo root by `go build ./cmd/...`
+/facility
+/facility-projector
+/facility-reports
+/mcp
+
 # Local scratch artifacts from browser-based verification
 .playwright-mcp/
 /*.png
