@@ -111,6 +111,68 @@ func TestHexagonalArchitecture(t *testing.T) {
 		assertPass(t, result)
 	})
 
+	t.Run("OLTP domain and application do not import the analytics read model", func(t *testing.T) {
+		// The analytical data product (ADR-0010) is an additive read side. Its
+		// read-model region (internal/analytics/report) and its store adapter
+		// (internal/adapters/outbound/analyticsstore) must never be imported by
+		// the OLTP domain or application layers: the report is derived FROM the
+		// event stream, never dual-written from the transactional core. This is
+		// the isolation that lets the analytics store move to a physically
+		// separate database without touching OLTP code.
+		rule := &configuration.DependenciesRule{
+			Package: "**.internal.domain.**",
+			ShouldNotDependsOn: &configuration.Dependencies{
+				Internal: []string{
+					"**.internal.analytics.**",
+					"**.internal.adapters.outbound.analyticsstore.**",
+				},
+			},
+		}
+
+		result := archgo.CheckArchitecture(moduleInfo, configuration.Config{
+			DependenciesRules: []*configuration.DependenciesRule{rule},
+		})
+
+		assertPass(t, result)
+	})
+
+	t.Run("the application layer does not import the analytics read model or store", func(t *testing.T) {
+		rule := &configuration.DependenciesRule{
+			Package: "**.internal.application.**",
+			ShouldNotDependsOn: &configuration.Dependencies{
+				Internal: []string{
+					"**.internal.analytics.**",
+					"**.internal.adapters.outbound.analyticsstore.**",
+				},
+			},
+		}
+
+		result := archgo.CheckArchitecture(moduleInfo, configuration.Config{
+			DependenciesRules: []*configuration.DependenciesRule{rule},
+		})
+
+		assertPass(t, result)
+	})
+
+	t.Run("the analytics read model depends on nothing internal", func(t *testing.T) {
+		// internal/analytics/report is a self-contained read-model region: it
+		// declares the report shapes and the writer/reader ports and must import
+		// no other internal package (not the OLTP domain, not an adapter), so it
+		// can never drag transactional code into the projection.
+		rule := &configuration.DependenciesRule{
+			Package: "**.internal.analytics.**",
+			ShouldOnlyDependsOn: &configuration.Dependencies{
+				Internal: []string{"**.internal.analytics.**"},
+			},
+		}
+
+		result := archgo.CheckArchitecture(moduleInfo, configuration.Config{
+			DependenciesRules: []*configuration.DependenciesRule{rule},
+		})
+
+		assertPass(t, result)
+	})
+
 	t.Run("ports package only contains interfaces", func(t *testing.T) {
 		// internal/application/ports declares OUT ports for adapters to
 		// implement; it must never define a concrete struct or function,
