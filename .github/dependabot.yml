@@ -49,3 +49,28 @@ updates:
         update-types:
           - "minor"
           - "patch"
+
+  # docs/ is a separate npm workspace (Docusaurus site) that gomod/govulncheck
+  # never see — without this, npm CVEs here go undetected until someone
+  # manually runs `npm audit` (see the 2026-08-27 remediation: 12 CVEs were
+  # unnoticed for this reason before this ecosystem was added).
+  - package-ecosystem: "npm"
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "06:00"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "npm"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "npm"
+      - "docs"
+    groups:
+      npm-minor-and-patch:
+        applies-to: version-updates
+        update-types:
+          - "minor"
+          - "patch"
