@@ -97,6 +97,7 @@ const sidebars: SidebarsConfig = {
         'adr/0008-location-classification-read-endpoint',
         'adr/0009-kafka-integration-publisher',
         'adr/0010-analytical-data-product',
+        'adr/0011-micro-frontend-console-adoption',
       ],
     },
   ],
