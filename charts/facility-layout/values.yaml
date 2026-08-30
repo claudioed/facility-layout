@@ -67,6 +67,11 @@ autoscaling:
 config:
   httpAddr: ":8080"
   migrationsPath: "migrations"
+  # Selects the outbound EventPublisher (ADR-0009): "log" (default) keeps the
+  # Postgres outbox/log publisher; "kafka" additionally fans out to the
+  # integration topic AND, when analytics.enabled, the analytics topic that
+  # the projector consumes. Existing default behavior is unchanged.
+  eventPublisher: "log"   # "log" or "kafka"
 
 # OpenTelemetry. The service pushes traces, metrics and logs over OTLP/gRPC
 # to a Collector; nothing is scraped from the pod. A Collector that is down
@@ -105,6 +110,56 @@ readinessProbe:
   initialDelaySeconds: 3
   periodSeconds: 5
 
+kafka:
+  enabled: false
+  brokers: "kafka:9092"
+
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+# --- analytics data product (ADR-0010) ---
+# The "Layout Catalog Growth & Change" report: a separate analytics topic, a
+# writer (projector) and a read-only reader (reports), backed by a separate
+# analytical database. Disabled by default so existing releases are
+# unaffected; set analytics.enabled=true to deploy the two extra processes.
+# Requires config.eventPublisher / kafka.enabled=true on the main deployment
+# too, or the projector's Kafka topic never receives events to consume.
+analytics:
+  enabled: false
+  # Directory (inside the image) of the analytical *.up.sql migrations the
+  # projector applies on start.
+  migrationsPath: "migrations/analytics"
+  database:
+    # The projector's read-write analytical DSN.
+    projectorUrl: ""
+    # The reader's DSN — a read-only role where possible; falls back to the
+    # projector DSN when empty (local/dev).
+    reportsUrl: ""
+    # Name of an existing Secret with ANALYTICS_DATABASE_URL and
+    # ANALYTICS_READER_DATABASE_URL keys. Takes precedence over the URLs above.
+    existingSecret: ""
+  projector:
+    replicaCount: 1
+    adminAddr: ":8091"
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  reports:
+    replicaCount: 1
+    httpAddr: ":8092"
+    service:
+      type: ClusterIP
+      port: 80
+      targetPort: 8092
+    resources:
+      limits:
+        cpu: 500m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
