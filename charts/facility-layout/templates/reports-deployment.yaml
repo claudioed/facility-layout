@@ -1,0 +1,103 @@
+{{- if .Values.analytics.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "facility-layout.reportsFullname" . }}
+  labels:
+    {{- include "facility-layout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics-reports
+spec:
+  replicas: {{ .Values.analytics.reports.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "facility-layout.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: analytics-reports
+  template:
+    metadata:
+      labels:
+        {{- include "facility-layout.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: analytics-reports
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "facility-layout.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: reports
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/app/facility-reports"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.analytics.reports.service.targetPort }}
+              protocol: TCP
+          env:
+            - name: HTTP_ADDR
+              value: {{ .Values.analytics.reports.httpAddr | quote }}
+            # The reports binary reads ANALYTICS_DATABASE_URL; it is fed the
+            # READER (read-only) DSN so even a bug cannot mutate the read model.
+            - name: ANALYTICS_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "facility-layout.analyticsSecretName" . }}
+                  key: ANALYTICS_READER_DATABASE_URL
+            {{- if .Values.otel.enabled }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ .Values.otel.endpoint | quote }}
+            - name: OTEL_SERVICE_NAME
+              value: "facility-reports"
+            - name: SERVICE_VERSION
+              value: {{ .Values.image.tag | default .Chart.AppVersion | quote }}
+            - name: ENVIRONMENT
+              value: {{ .Values.environment | quote }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            {{- toYaml .Values.analytics.reports.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "facility-layout.reportsFullname" . }}
+  labels:
+    {{- include "facility-layout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics-reports
+spec:
+  type: {{ .Values.analytics.reports.service.type }}
+  ports:
+    - port: {{ .Values.analytics.reports.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "facility-layout.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: analytics-reports
+{{- end }}
