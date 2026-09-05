@@ -46,6 +46,23 @@ ingress:
           pathType: Prefix
   tls: []
 
+# Gateway API HTTPRoute, additive alongside ingress above. Disabled by
+# default so existing Ingress-based releases are unaffected; set
+# gatewayApi.enabled=true (and leave ingress.enabled=false) to route via a
+# Gateway API implementation instead (e.g. Kong's Ingress Controller acting
+# as an unmanaged GatewayClass). Mirrors the shape verified live in
+# warehouse-infra's fulfillment-execution Gateway API pilot.
+gatewayApi:
+  enabled: false
+  parentRefs:
+    - name: ""
+      namespace: ""
+      sectionName: "http"
+  hosts:
+    - path: /
+      pathType: PathPrefix
+  stripPath: true
+
 resources:
   limits:
     cpu: 500m
