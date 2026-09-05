@@ -31,7 +31,6 @@ export function Layer({ children }: { children: ReactNode }) {
 export function Group({
   children,
   onClick,
-  onTap,
   onMouseEnter,
   onMouseLeave,
   ...rest
