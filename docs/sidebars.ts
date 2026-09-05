@@ -98,6 +98,7 @@ const sidebars: SidebarsConfig = {
         'adr/0009-kafka-integration-publisher',
         'adr/0010-analytical-data-product',
         'adr/0011-micro-frontend-console-adoption',
+        'adr/0012-standard-metrics-convention',
       ],
     },
   ],
