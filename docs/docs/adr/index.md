@@ -60,6 +60,7 @@ updated. The history of what was believed and when is the point.
 | [0008](./0008-location-classification-read-endpoint.md) | Location classification read endpoint | Accepted |
 | [0009](./0009-kafka-integration-publisher.md) | Kafka integration publisher for the Published Language | Accepted |
 | [0010](./0010-analytical-data-product.md) | Per-service analytical data product (report) via a separate analytics topic | Accepted |
+| [0011](./0011-micro-frontend-console-adoption.md) | Adoption of the fleet-wide micro-frontend console architecture (warehouse-ops-agent ADR-0002) | Accepted |
 
 ## The Kafka record that was deferred until the adapter existed
 

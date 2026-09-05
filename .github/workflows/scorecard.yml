@@ -1,0 +1,44 @@
+name: OpenSSF Scorecard
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # Scorecard measures repo-level supply-chain hygiene (branch protection,
+    # signed commits, dependency pinning, etc.) — a weekly cadence is the
+    # project's own recommendation since most inputs change slowly.
+    - cron: "0 8 * * 2"
+  workflow_dispatch: {}
+
+permissions: read-all
+
+jobs:
+  analysis:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      security-events: write   # upload SARIF to the Security tab
+      id-token: write          # publish results to the public Scorecard API
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@v2
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload to code-scanning
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: results.sarif

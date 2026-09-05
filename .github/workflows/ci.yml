@@ -20,12 +20,15 @@ defaults:
     shell: bash
 
 jobs:
+  # ============================================================
+  # CLASSIFICATION: LINTERS & STATIC ANALYSIS
+  # ============================================================
   lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
           cache: false          # golangci-lint-action manages its own cache
@@ -34,12 +37,15 @@ jobs:
           version: v2.13.1
           args: --timeout=5m
 
+  # ============================================================
+  # CLASSIFICATION: UNIT TESTING
+  # ============================================================
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
 
@@ -74,17 +80,23 @@ jobs:
           name: coverage
           path: coverage.out
 
+  # ============================================================
+  # CLASSIFICATION: BEHAVIOR TESTING (BDD / Gherkin)
+  # ============================================================
   bdd:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Run BDD (godog/Gherkin) acceptance tests
         run: go test ./... -run TestFeatures -v
 
+  # ============================================================
+  # CLASSIFICATION: INTEGRATION TESTING
+  # ============================================================
   integration:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -103,7 +115,7 @@ jobs:
           --health-retries 10
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Integration tests
@@ -111,12 +123,15 @@ jobs:
           DATABASE_URL: "postgres://facility:facility@localhost:5432/facility?sslmode=disable"
         run: go test -tags=integration ./... -race -count=1
 
+  # ============================================================
+  # CLASSIFICATION: TEST QUALITY (MUTATION TESTING, fast subset)
+  # ============================================================
   mutation-fast:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Install gremlins
@@ -130,12 +145,15 @@ jobs:
         # rather than narrowing. See MUTATION.md for the comparison.
         run: gremlins unleash ./internal/domain
 
+  # ============================================================
+  # CLASSIFICATION: SECURITY SCANNER (dependency / stdlib CVEs)
+  # ============================================================
   vuln:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Install govulncheck
@@ -149,7 +167,7 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Install gremlins
@@ -157,6 +175,9 @@ jobs:
       - name: Mutation testing (domain layer)
         run: gremlins unleash ./internal/domain --workers 1 --timeout-coefficient 30
 
+  # ============================================================
+  # CLASSIFICATION: LINTERS & STATIC ANALYSIS (API contracts)
+  # ============================================================
   api-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -170,9 +191,15 @@ jobs:
       - name: Lint OpenAPI spec
         run: spectral lint apis/openapi.yaml --ruleset .spectral.yaml --fail-severity=warn
 
+  # ============================================================
+  # CLASSIFICATION: PACKAGING VALIDATION (Helm chart)
+  # Runs ONLY for a pull_request targeting main -- validated pre-merge,
+  # never on develop pushes/PRs or on push-to-main (already validated).
+  # ============================================================
   helm-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
     steps:
       - uses: actions/checkout@v7
         with:
@@ -188,35 +215,132 @@ jobs:
       - name: Run chart-testing (lint)
         run: ct lint --charts charts/facility-layout --validate-maintainers=false --check-version-increment=false
 
+  # ============================================================
+  # CLASSIFICATION: LINTERS & STATIC ANALYSIS (architecture fitness)
+  # ============================================================
   arch-test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Architecture fitness tests
         run: go test ./internal/architecture/... -v
 
+  # facility-mfe (web/) is a Module Federation remote consumed by the
+  # warehouse-console shell; it depends on @warehouse/ui-kit via
+  # `file:../../warehouse-ui-kit`, so warehouse-ui-kit is checked out as a
+  # SIBLING directory here (matching warehouse-console's own CI shape) so
+  # that relative path resolves the same way it does on a contributor's
+  # machine. lint + typecheck (tsc -b) + vitest unit/component tests +
+  # production build, mirroring the static checks warehouse-console/
+  # warehouse-ui-kit already run in their own CI, plus real test coverage
+  # (vitest + Testing Library) that no frontend in this fleet had before.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: facility-layout/web
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: facility-layout
+      - uses: actions/checkout@v7
+        with:
+          repository: claudioed/warehouse-ui-kit
+          ref: develop
+          path: warehouse-ui-kit
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - run: npm ci && npm run build
+        working-directory: warehouse-ui-kit
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc -b
+      - run: npm test
+      - run: npm run build
+
+  # Shift-left container scan: builds the image (no push) on every push AND
+  # every PR, so a vulnerable base image or dependency is caught before
+  # merge, not just at publish time. Blocks on CRITICAL/HIGH with a known
+  # fix; findings also land in the repo's Security tab (SARIF) regardless
+  # of pass/fail so history is visible even when nothing blocks.
+  # ============================================================
+  # CLASSIFICATION: SECURITY SCANNER (container image)
+  # Runs ONLY for a pull_request targeting main -- validated pre-merge,
+  # never on develop pushes/PRs or on push-to-main (already validated).
+  # ============================================================
+  trivy-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request' && github.base_ref == 'main'
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build image (local only, not pushed)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: facility-layout:scan
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy scan (SARIF, always uploaded)
+        uses: aquasecurity/trivy-action@v0.36.0
+        if: always()
+        with:
+          image-ref: 'facility-layout:scan'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM'
+          ignore-unfixed: true
+      - name: Upload Trivy SARIF to Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+      - name: "Trivy scan (blocking gate: CRITICAL/HIGH with a fix available)"
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: 'facility-layout:scan'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+  # ============================================================
+  # CLASSIFICATION: PUBLISH (Docker image) -- push-to-main only
+  # ============================================================
   docker-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [lint, test, bdd, integration, mutation-fast, vuln, api-lint, helm-lint, arch-test]
+    needs: [lint, test, bdd, integration, mutation-fast, vuln, api-lint, arch-test]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
+      id-token: write   # cosign keyless signing (Fulcio/Rekor via GitHub OIDC)
     steps:
       - uses: actions/checkout@v7
       - name: Set image tag (short SHA)
         run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Log in to Docker Hub
         uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -227,12 +351,39 @@ jobs:
             claudioed/facility-layout:${{ env.SHORT_SHA }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+      - name: Sign the published image (keyless, GitHub OIDC identity)
+        run: |
+          cosign sign --yes \
+            claudioed/facility-layout@${{ steps.build.outputs.digest }}
+      - name: Generate SBOM (SPDX) for the published image
+        uses: anchore/sbom-action@v0
+        with:
+          image: claudioed/facility-layout@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom.spdx.json
+      - name: Attest the image with its SBOM (keyless)
+        run: |
+          cosign attest --yes \
+            --predicate sbom.spdx.json \
+            --type spdxjson \
+            claudioed/facility-layout@${{ steps.build.outputs.digest }}
+      - name: Upload SBOM as a workflow artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: sbom
+          path: sbom.spdx.json
+          retention-days: 90
 
   # Cuts a GitHub Release (+ matching git tag + versioned Docker tag) on every
   # merge to main. Runs only after docker-publish actually succeeded, so a
   # release always points at an image that is genuinely live on Docker Hub.
   # Versioning: simple auto-increment patch (vX.Y.Z -> vX.Y.(Z+1)), starting
   # at v0.1.0 if no tag exists yet. No commit-message parsing.
+  # ============================================================
+  # CLASSIFICATION: PUBLISH (GitHub release + Helm chart) -- push-to-main only
+  # ============================================================
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -240,6 +391,7 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: write
+      packages: write
     steps:
       - uses: actions/checkout@v7
         with:
@@ -259,9 +411,9 @@ jobs:
           echo "version=$new" >> "$GITHUB_OUTPUT"
       - name: Set image tag (short SHA)
         run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - name: Log in to Docker Hub
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -280,13 +432,10 @@ jobs:
             --app-version "$CHART_VERSION" \
             -d /tmp/chart-out
           echo "CHART_TGZ=/tmp/chart-out/facility-layout-${CHART_VERSION}.tgz" >> "$GITHUB_ENV"
-          echo "$DOCKERHUB_TOKEN" | helm registry login registry-1.docker.io \
-            -u "$DOCKERHUB_USERNAME" --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            -u "${{ github.actor }}" --password-stdin
           helm push "/tmp/chart-out/facility-layout-${CHART_VERSION}.tgz" \
-            oci://registry-1.docker.io/claudioed
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+            oci://ghcr.io/claudioed
       - name: Create and push the git tag
         run: |
           git config user.name "github-actions[bot]"
@@ -303,5 +452,5 @@ jobs:
             Docker image: `claudioed/facility-layout:${{ steps.version.outputs.version }}`
             (also tagged `latest` and `${{ env.SHORT_SHA }}`)
 
-            Helm chart: `oci://registry-1.docker.io/claudioed/facility-layout:${{ steps.version.outputs.version }}`
+            Helm chart: `oci://ghcr.io/claudioed/facility-layout:${{ steps.version.outputs.version }}`
             (also attached below as a `.tgz`)

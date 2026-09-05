@@ -7,3 +7,7 @@ metadata:
 data:
   HTTP_ADDR: {{ .Values.config.httpAddr | quote }}
   MIGRATIONS_PATH: {{ .Values.config.migrationsPath | quote }}
+  EVENT_PUBLISHER: {{ .Values.config.eventPublisher | quote }}
+  {{- if .Values.kafka.enabled }}
+  KAFKA_BROKERS: {{ .Values.kafka.brokers | quote }}
+  {{- end }}

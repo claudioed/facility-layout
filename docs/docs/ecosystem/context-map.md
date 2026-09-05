@@ -30,6 +30,35 @@ an intention as an implementation.
 | `workforce-management` | — | Supporting | No planned relationship |
 | **`facility-layout`** | WMS-tier concern, extracted | **Generic** | Open Host Service to all of the above |
 
+## The console: a new, live, browser-facing relationship
+
+Unlike the four Kafka relationships below (all still planned), this service
+has one **already-built and live** integration outside the backend fleet:
+`facility-mfe`, a Module Federation remote owned in this repo's own `web/`
+directory, calling this service's own REST API (`GET /sites`,
+`GET /sites/{siteCode}/layout`) directly from the browser. It is composed at
+runtime by the separate `warehouse-console` shell repo, per
+[ADR-0011](../adr/0011-micro-frontend-console-adoption.md), which adopts the
+fleet-wide decision recorded in `warehouse-ops-agent`'s
+[ADR-0002](https://github.com/claudioed/warehouse-ops-agent/blob/docs/adr-mfe-architecture/docs/docs/adr/0002-micro-frontend-console-architecture.md).
+
+This is **not** a bounded-context relationship in the Evans/Vernon sense —
+`warehouse-console` has no domain model and owns no aggregate — but it is a
+real, live, additive inbound HTTP surface (browser → this service's existing
+REST API, via new CORS middleware) that did not exist before. It is
+deliberately **separate** from the "no inbound dependency, ever" property
+discussed below: that property is about other *bounded contexts'* backends
+never calling into this service's domain on their own terms, which still
+holds. A UI client calling this service's own published REST API is the same
+category of consumer as any other REST client, browser or not.
+
+`facility-layout` is explicitly **not** one of the four services
+`warehouse-ops-agent`'s `console-bff` fans out to for the cross-cutting Order
+Lifecycle screen (`order-management`, `inventory-storage`,
+`wes-work-planning`, `fulfillment-execution`) — it has no order reference in
+its own aggregates. Its role in the console is limited to `facility-mfe`'s
+own screen over its own data. See ADR-0011 for the full adoption record.
+
 ## What is actually wired today
 
 The four sibling services do integrate with each other over Kafka, on a
