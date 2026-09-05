@@ -234,10 +234,10 @@ jobs:
   # `file:../../warehouse-ui-kit`, so warehouse-ui-kit is checked out as a
   # SIBLING directory here (matching warehouse-console's own CI shape) so
   # that relative path resolves the same way it does on a contributor's
-  # machine. No test-execution step exists yet for any frontend in this
-  # fleet -- this job is lint + typecheck (tsc -b) + production build only,
-  # mirroring the static checks warehouse-console/warehouse-ui-kit already
-  # run in their own CI.
+  # machine. lint + typecheck (tsc -b) + vitest unit/component tests +
+  # production build, mirroring the static checks warehouse-console/
+  # warehouse-ui-kit already run in their own CI, plus real test coverage
+  # (vitest + Testing Library) that no frontend in this fleet had before.
   web:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -261,6 +261,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx tsc -b
+      - run: npm test
       - run: npm run build
 
   # Shift-left container scan: builds the image (no push) on every push AND
