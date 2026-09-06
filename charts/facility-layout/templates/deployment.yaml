@@ -44,8 +44,14 @@ spec:
           env:
             - name: HTTP_ADDR
               value: {{ .Values.config.httpAddr | quote }}
+            - name: EVENT_PUBLISHER
+              value: {{ .Values.config.eventPublisher | quote }}
             - name: MIGRATIONS_PATH
               value: {{ .Values.config.migrationsPath | quote }}
+            {{- if .Values.kafka.enabled }}
+            - name: KAFKA_BROKERS
+              value: {{ .Values.kafka.brokers | quote }}
+            {{- end }}
             {{- if or .Values.database.url .Values.database.existingSecret }}
             - name: DATABASE_URL
               valueFrom:
