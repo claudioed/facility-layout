@@ -1,0 +1,74 @@
+---
+id: get-location-classification
+title: "Get a location slot's resolved hazmat/temperature-class attributes"
+description: "Resolves a LocationSlot's LocationCode to its parent Zone (the same Site/Area/Zone/Aisle chain-of-custody resolution `POST /locations` performs) and returns that Zone's `hazmat` and `temperatureClass` attributes. This is a deliberately cheap, denormalized read: it does not return the rest of the LocationSlot or Zone shape, only what a cross-context caller needs to validate placement of a classified product (e.g. `inventory-storage` checking that a Hazmat SKU only lands in a hazmat-rated Zone, or a TemperatureSensitive SKU only lands in a Zone with a matching TemperatureClass) without duplicating Zone data of its own."
+sidebar_label: "Get a location slot's resolved hazmat/temperature-class attributes"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Get a location slot's resolved hazmat/temperature-class attributes"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/locations/{locationCode}/classification"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Resolves a LocationSlot's LocationCode to its parent Zone (the same Site/Area/Zone/Aisle chain-of-custody resolution `POST /locations` performs) and returns that Zone's `hazmat` and `temperatureClass` attributes. This is a deliberately cheap, denormalized read: it does not return the rest of the LocationSlot or Zone shape, only what a cross-context caller needs to validate placement of a classified product (e.g. `inventory-storage` checking that a Hazmat SKU only lands in a hazmat-rated Zone, or a TemperatureSensitive SKU only lands in a Zone with a matching TemperatureClass) without duplicating Zone data of its own.
+
+This context remains the sole source of truth for these attributes — Zone already carries `Hazmat` and `TemperatureClass`; this endpoint is the concrete realization of this context's Open Host Service / Published Language for that purpose (see ADR-0008).
+
+A code that is not seven `[A-Z0-9]` segments is a 400, not a 404 — it could never identify a slot. An unknown location code, or one whose slot exists but whose zone cannot be resolved, is a 404.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./get-location-classification.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./get-location-classification.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./get-location-classification.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
