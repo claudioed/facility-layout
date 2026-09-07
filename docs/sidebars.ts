@@ -99,6 +99,7 @@ const sidebars: SidebarsConfig = {
         'adr/0010-analytical-data-product',
         'adr/0011-micro-frontend-console-adoption',
         'adr/0012-standard-metrics-convention',
+        'adr/0013-first-published-language-consumer',
       ],
     },
   ],
