@@ -94,3 +94,21 @@ Name of the Secret holding the analytics DSNs, when the chart creates its own.
 {{- include "facility-layout.fullname" . }}-analytics
 {{- end }}
 {{- end }}
+
+{{/*
+Fully qualified name of the MCP server deployment/service (ADR-0007).
+*/}}
+{{- define "facility-layout.mcpFullname" -}}
+{{- include "facility-layout.fullname" . }}-mcp
+{{- end }}
+
+{{/*
+Name of the Secret holding the MCP bearer keys, when the chart creates its own.
+*/}}
+{{- define "facility-layout.mcpSecretName" -}}
+{{- if .Values.mcp.existingSecret }}
+{{- .Values.mcp.existingSecret }}
+{{- else }}
+{{- include "facility-layout.fullname" . }}-mcp
+{{- end }}
+{{- end }}

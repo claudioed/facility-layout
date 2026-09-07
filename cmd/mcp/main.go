@@ -22,6 +22,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	inboundmcp "github.com/claudioed/facility-layout/internal/adapters/inbound/mcp"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/memory"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/postgres"
@@ -91,7 +93,7 @@ func run() error {
 	server := inboundmcp.NewServer(deps)
 
 	auth := inboundmcp.NewStaticKeyAuth(authKeys(logger))
-	handler := inboundmcp.Handler(server, auth)
+	handler := newRouter(inboundmcp.Handler(server, auth))
 
 	srv := &http.Server{Addr: httpAddr, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 
@@ -109,6 +111,32 @@ func run() error {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return srv.Shutdown(shutdownCtx)
+}
+
+// newRouter wraps the authenticated MCP handler in the process's HTTP surface:
+//
+//   - GET /healthz answers 200 {"status":"ok"} WITHOUT authentication, so the
+//     Kubernetes liveness/readiness probes (which carry no bearer key) can
+//     see the process is up. It reveals nothing about the map.
+//   - The MCP Streamable HTTP endpoint is mounted at BOTH "/" and "/mcp":
+//     "/" keeps the original root mount working, "/mcp" is the convention
+//     warehouse-ops-agent's *_MCP_ENDPOINT values and the docs' examples
+//     use. Every request on either path still goes through the auth
+//     middleware inside mcpHandler.
+func newRouter(mcpHandler http.Handler) http.Handler {
+	r := chi.NewRouter()
+	r.Get("/healthz", healthz)
+	r.Handle("/", mcpHandler)
+	r.Mount("/mcp", mcpHandler)
+	return r
+}
+
+// healthz is the unauthenticated process-liveness endpoint; it mirrors the
+// shape cmd/facility-projector and cmd/facility-reports already expose.
+func healthz(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
 // adapterSet is the read-side outbound repos the MCP server needs, chosen at

@@ -18,7 +18,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/facility ./cmd/facility && \
     CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/facility-projector ./cmd/facility-projector && \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/facility-reports ./cmd/facility-reports
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/facility-reports ./cmd/facility-reports && \
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/mcp ./cmd/mcp
 
 # --- runtime stage ---
 FROM alpine:3.24
@@ -32,6 +33,7 @@ WORKDIR /app
 COPY --from=build --chown=app:app /out/facility ./facility
 COPY --from=build --chown=app:app /out/facility-projector ./facility-projector
 COPY --from=build --chown=app:app /out/facility-reports ./facility-reports
+COPY --from=build --chown=app:app /out/mcp ./mcp
 COPY --from=build --chown=app:app /src/migrations ./migrations
 USER 1000
 EXPOSE 8080
