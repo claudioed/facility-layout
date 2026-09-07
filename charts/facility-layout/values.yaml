@@ -180,3 +180,39 @@ analytics:
       requests:
         cpu: 100m
         memory: 128Mi
+
+# --- MCP server (ADR-0007) ---
+# The Model Context Protocol server: a second deployable from the same image
+# (`/app/mcp`) exposing this context's read use cases as curated MCP tools
+# over Streamable HTTP. It reads the SAME OLTP database as the main
+# deployment (database.url / database.existingSecret) and, when analytics is
+# enabled, calls the reports Service for the catalog-growth report tool.
+# Disabled by default so existing releases are unaffected.
+mcp:
+  enabled: false
+  replicaCount: 1
+  httpAddr: ":8090"
+  service:
+    type: ClusterIP
+    port: 8090
+    targetPort: 8090
+  # Static bearer keys (fail closed: with both empty the server rejects every
+  # request). Set from a secret manager / Terraform random_password, never
+  # committed. MCP_READ_KEY grants the read scope; MCP_READWRITE_KEY is the
+  # future write seam (no write tool is registered today).
+  readKey: ""
+  readWriteKey: ""
+  # Name of an existing Secret with MCP_READ_KEY and MCP_READWRITE_KEY keys.
+  # Takes precedence over readKey/readWriteKey above.
+  existingSecret: ""
+  # Overrides the reports base URL the catalog-growth tool calls. When empty
+  # and analytics.enabled=true, defaults to the in-cluster reports Service.
+  reportsBaseUrl: ""
+  extraEnv: []
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi

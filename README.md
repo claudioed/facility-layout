@@ -837,4 +837,27 @@ environment: "local"     # deployment.environment.name
 chart's `appVersion`, so a deployed pod always reports the image it is
 actually running.
 
+### Running the MCP server in Kubernetes
+
+The MCP server (ADR-0007) ships in the same image as `/app/mcp` and is a
+separate, opt-in deployable: set `mcp.enabled=true` and the chart renders a
+`<release>-mcp` Deployment, a ClusterIP Service on port `8090`, and a Secret
+holding the two static bearer keys (`mcp.readKey` → `MCP_READ_KEY`,
+`mcp.readWriteKey` → `MCP_READWRITE_KEY`; or point `mcp.existingSecret` at
+your own). The pod reads the same `DATABASE_URL` secret as the main
+deployment, runs the OLTP migrations on start (idempotent), and — when
+`analytics.enabled=true` — is wired to the in-cluster reports Service so the
+catalog-growth report tool is registered. `GET /healthz` is unauthenticated
+and backs the liveness/readiness probes; the MCP Streamable HTTP endpoint is
+served at both `/` and `/mcp`, so a client connects to
+`http://<release>-mcp.<namespace>.svc.cluster.local:8090/mcp` with
+`Authorization: Bearer <readKey>`. Both keys empty is fail-closed: the server
+starts and rejects every MCP request.
+
+```sh
+helm upgrade --install facility-layout ./charts/facility-layout \
+  --set database.url="postgres://facility:***@postgres:5432/facility?sslmode=disable" \
+  --set mcp.enabled=true --set mcp.readKey="$(openssl rand -hex 20)"
+```
+
 Linted in CI with `ct lint --charts charts/facility-layout`.

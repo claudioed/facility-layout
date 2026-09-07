@@ -15,6 +15,19 @@ the estate is `fulfillment-execution` (its ADR-0008); this record is
 `facility-layout` adopting that same decision, adapted to a read-only Open Host
 Service.
 
+**Addendum (2026-09-07) — deployable.** Until this date `cmd/mcp` existed only
+as code: the Dockerfile did not build it and the Helm chart had no MCP
+workload, so no cluster ran it. The image now ships the binary as `/app/mcp`
+and the chart gains an opt-in `mcp` block (`mcp.enabled`, default `false`)
+rendering a `<release>-mcp` Deployment (`app.kubernetes.io/component: mcp`),
+a ClusterIP Service on `8090` and a Secret carrying `MCP_READ_KEY` /
+`MCP_READWRITE_KEY`. To make it probeable, `cmd/mcp` gained an
+**unauthenticated `GET /healthz`** and now mounts the authenticated MCP
+Streamable HTTP handler at **both `/` and `/mcp`** (the `/mcp` path is the
+`*_MCP_ENDPOINT` convention `warehouse-ops-agent` already uses). Deployment to
+the `warehouse` cluster is driven from `warehouse-infra`, which sets
+`mcp.enabled=true` and generates the keys; this repo only makes it possible.
+
 ## Context
 
 The platform is being connected to the AI ecosystem (Claude, Cursor, ChatGPT,
