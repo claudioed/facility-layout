@@ -30,7 +30,7 @@ Answering a placement question: find a zone whose temperatureClass/hazmat suit t
 Done means: you have named the specific site, zone(s), aisle(s) and slot code(s) that answer the question, each justified from tool output. Do not attempt to change anything; this service exposes no write tool.`
 
 // registerPrompts adds the workflow prompts (operational SOPs).
-func (d Deps) registerPrompts(server *mcp.Server, _ func(context.Context) Scope) {
+func (d Deps) registerPrompts(server *mcp.Server) {
 	server.AddPrompt(&mcp.Prompt{
 		Name:        "explore_layout",
 		Description: "Standard operating procedure for navigating the warehouse map (site -> zone -> aisle -> slot) to answer a placement or travel question using the read tools.",

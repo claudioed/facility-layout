@@ -111,24 +111,6 @@ database:
   existingSecret: ""
   existingSecretKey: "DATABASE_URL"
 
-# --- REST identity (ADR-0014; fleet decision warehouse-ops-agent ADR 0005) ---
-# Static bearer keys with read / read-write scopes protect every REST route of
-# the main deployment AND the reports reader (which only ever needs read);
-# /healthz stays open for the probes. mode is one of:
-#   enforce  reject unauthenticated / under-scoped requests (401/403, RFC 7807)
-#   log      let everything through but log "auth: would-reject" (rollout soak)
-#   off      middleware disabled
-# With both keys empty the binary itself falls back to "off" and WARNs, so a
-# chart rendered without keys keeps today's open behaviour. Set the keys from
-# a secret manager / Terraform random_password, never commit them.
-auth:
-  mode: "enforce"
-  readKey: ""
-  readWriteKey: ""
-  # Name of an existing Secret with API_READ_KEY and API_READWRITE_KEY keys.
-  # Takes precedence over readKey/readWriteKey above.
-  existingSecret: ""
-
 extraEnv: []
 
 livenessProbe:
@@ -214,15 +196,6 @@ mcp:
     type: ClusterIP
     port: 8090
     targetPort: 8090
-  # Static bearer keys (fail closed: with both empty the server rejects every
-  # request). Set from a secret manager / Terraform random_password, never
-  # committed. MCP_READ_KEY grants the read scope; MCP_READWRITE_KEY is the
-  # future write seam (no write tool is registered today).
-  readKey: ""
-  readWriteKey: ""
-  # Name of an existing Secret with MCP_READ_KEY and MCP_READWRITE_KEY keys.
-  # Takes precedence over readKey/readWriteKey above.
-  existingSecret: ""
   # Overrides the reports base URL the catalog-growth tool calls. When empty
   # and analytics.enabled=true, defaults to the in-cluster reports Service.
   reportsBaseUrl: ""

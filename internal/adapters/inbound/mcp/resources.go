@@ -7,22 +7,20 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
-
-	"github.com/claudioed/facility-layout/internal/adapters/inbound/auth"
 )
 
 // layoutURIScheme is the scheme+authority prefix of the site-layout resource
 // URI. A concrete resource URI is layoutURIScheme + "<siteCode>".
 const layoutURIScheme = "layout://facility/"
 
-// registerResources adds the scoped read-model resource. Per the charter,
-// resources are bounded-context contracts tied to a decision, not bulk dumps:
-// the layout resource answers "what is the drawable structure of this one
+// registerResources adds the read-model resource. Per the charter, resources
+// are bounded-context contracts tied to a decision, not bulk dumps: the
+// layout resource answers "what is the drawable structure of this one
 // site?", backed by the same GetSiteLayout read model the tool uses.
 //
 // The resource is registered as a template (layout://facility/{siteCode}) so a
 // client can read any site's layout by URI without a per-site registration.
-func (d Deps) registerResources(server *mcp.Server, scopeOf func(context.Context) Scope) {
+func (d Deps) registerResources(server *mcp.Server) {
 	server.AddResourceTemplate(&mcp.ResourceTemplate{
 		URITemplate: layoutURIScheme + "{siteCode}",
 		Name:        "site layout",
@@ -30,9 +28,6 @@ func (d Deps) registerResources(server *mcp.Server, scopeOf func(context.Context
 		MIMEType:    "application/json",
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		uri := req.Params.URI
-		if !auth.Allows(scopeOf(ctx), ScopeRead) {
-			return nil, fmt.Errorf("resource %q requires read scope", uri)
-		}
 		siteCode, ok := strings.CutPrefix(uri, layoutURIScheme)
 		if !ok || siteCode == "" {
 			return nil, fmt.Errorf("resource %q is not a valid site-layout URI", uri)

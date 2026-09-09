@@ -8,7 +8,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/claudioed/facility-layout/internal/adapters/inbound/auth"
 	"github.com/claudioed/facility-layout/internal/analytics/report"
 )
 
@@ -153,10 +152,6 @@ func writeReportInternal(w http.ResponseWriter, r *http.Request, err error) {
 // service. A nil logger falls back to slog.Default(). The router is trace-free,
 // consistent with the rest of the analytics pipeline (facility-layout has no
 // OTel package for the analytics processes).
-//
-// opts accepts WithAuth: when wired, every /reports route requires the READ
-// scope (the reader is read-only, so a read key is all it ever needs) and
-// /healthz stays open for the probes. The composition root picks the mode.
 func NewReportsRouter(h *ReportsHandlers, logger *slog.Logger, opts ...RouterOption) *chi.Mux {
 	if logger == nil {
 		logger = slog.Default()
@@ -166,9 +161,6 @@ func NewReportsRouter(h *ReportsHandlers, logger *slog.Logger, opts ...RouterOpt
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	if cfg.auth != nil {
-		cfg.auth.Required = func(*http.Request) auth.Scope { return auth.ScopeRead }
-	}
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -177,11 +169,8 @@ func NewReportsRouter(h *ReportsHandlers, logger *slog.Logger, opts ...RouterOpt
 
 	r.Get("/healthz", h.GetReportsHealthz)
 
-	r.Group(func(r chi.Router) {
-		r.Use(cfg.authHandler())
-		r.Get("/reports/catalog-growth", h.GetCatalogGrowth)
-		r.Get("/reports/catalog-growth/freshness", h.GetCatalogGrowthFreshness)
-	})
+	r.Get("/reports/catalog-growth", h.GetCatalogGrowth)
+	r.Get("/reports/catalog-growth/freshness", h.GetCatalogGrowthFreshness)
 
 	return r
 }
