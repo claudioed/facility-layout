@@ -63,6 +63,7 @@ updated. The history of what was believed and when is the point.
 | [0011](./0011-micro-frontend-console-adoption.md) | Adoption of the fleet-wide micro-frontend console architecture (warehouse-ops-agent ADR-0002) | Accepted |
 | [0012](./0012-standard-metrics-convention.md) | Standard metrics convention across the fleet | Accepted |
 | [0013](./0013-first-published-language-consumer.md) | inventory-storage is the first real consumer of the Published Language | Accepted |
+| [0014](./0014-rest-identity-adoption.md) | Adopt the fleet REST identity standard (static bearer keys, read/read-write scopes; warehouse-ops-agent ADR 0005) | Accepted |
 
 ## The Kafka record that was deferred until the adapter existed
 

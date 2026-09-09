@@ -112,3 +112,50 @@ Name of the Secret holding the MCP bearer keys, when the chart creates its own.
 {{- include "facility-layout.fullname" . }}-mcp
 {{- end }}
 {{- end }}
+
+{{/*
+Name of the Secret holding the REST bearer keys (ADR-0014), when the chart
+creates its own.
+*/}}
+{{- define "facility-layout.authSecretName" -}}
+{{- if .Values.auth.existingSecret }}
+{{- .Values.auth.existingSecret }}
+{{- else }}
+{{- include "facility-layout.fullname" . }}-auth
+{{- end }}
+{{- end }}
+
+{{/*
+True when the REST auth Secret refs should be rendered on a pod: either the
+chart owns a key or an existing Secret was named.
+*/}}
+{{- define "facility-layout.authEnabled" -}}
+{{- if or .Values.auth.readKey .Values.auth.readWriteKey .Values.auth.existingSecret -}}true{{- end -}}
+{{- end }}
+
+{{/*
+The REST auth env block shared by the main and reports containers: AUTH_MODE
+always (from the ConfigMap), the key refs only when a Secret exists. Each key
+is optional so a Secret may carry just one of them.
+*/}}
+{{- define "facility-layout.authEnv" -}}
+- name: AUTH_MODE
+  valueFrom:
+    configMapKeyRef:
+      name: {{ include "facility-layout.fullname" . }}
+      key: AUTH_MODE
+{{- if include "facility-layout.authEnabled" . }}
+- name: API_READ_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "facility-layout.authSecretName" . }}
+      key: API_READ_KEY
+      optional: true
+- name: API_READWRITE_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ include "facility-layout.authSecretName" . }}
+      key: API_READWRITE_KEY
+      optional: true
+{{- end }}
+{{- end }}

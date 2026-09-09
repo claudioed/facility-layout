@@ -26,7 +26,12 @@ type testServer struct {
 
 func newTestServer(t *testing.T) *testServer {
 	t.Helper()
+	return &testServer{t: t, handler: inboundhttp.NewRouter(newTestUseCases(), slog.New(slog.NewTextHandler(io.Discard, nil)))}
+}
 
+// newTestUseCases wires every use case over fresh in-memory adapters, so a
+// test can build the router with its own RouterOptions (e.g. WithAuth).
+func newTestUseCases() *inboundhttp.Server {
 	sites := memory.NewSiteRepo()
 	zones := memory.NewZoneRepo()
 	aisles := memory.NewAisleRepo()
@@ -67,7 +72,7 @@ func newTestServer(t *testing.T) *testServer {
 		GetZoneGrid:   &usecases.GetZoneGrid{Zones: zones, Aisles: aisles, Slots: slots},
 	}
 
-	return &testServer{t: t, handler: inboundhttp.NewRouter(s, slog.New(slog.NewTextHandler(io.Discard, nil)))}
+	return s
 }
 
 type response struct {

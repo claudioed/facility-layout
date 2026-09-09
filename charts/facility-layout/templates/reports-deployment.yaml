@@ -46,6 +46,9 @@ spec:
                 secretKeyRef:
                   name: {{ include "facility-layout.analyticsSecretName" . }}
                   key: ANALYTICS_READER_DATABASE_URL
+            # Same REST identity refs as the main deployment (ADR-0014); the
+            # reader pins its required scope to read.
+            {{- include "facility-layout.authEnv" . | nindent 12 }}
             {{- if .Values.otel.enabled }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ .Values.otel.endpoint | quote }}
