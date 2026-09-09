@@ -229,7 +229,7 @@ curl "http://localhost:8092/reports/catalog-growth?from=2026-01-01T00:00:00Z&to=
 curl "http://localhost:8092/reports/catalog-growth/freshness"
 
 # Expose it as a curated MCP tool by pointing the MCP server at the reports service:
-REPORTS_BASE_URL="http://localhost:8092" MCP_READ_KEY=dev-read go run ./cmd/mcp
+REPORTS_BASE_URL="http://localhost:8092" go run ./cmd/mcp
 ```
 
 Analytics processes are trace-free (facility-layout has no OTel package for
@@ -836,5 +836,26 @@ environment: "local"     # deployment.environment.name
 `SERVICE_VERSION` is taken from `.Values.image.tag`, falling back to the
 chart's `appVersion`, so a deployed pod always reports the image it is
 actually running.
+
+### Running the MCP server in Kubernetes
+
+The MCP server (ADR-0007) ships in the same image as `/app/mcp` and is a
+separate, opt-in deployable: set `mcp.enabled=true` and the chart renders a
+`<release>-mcp` Deployment and a ClusterIP Service on port `8090`. The pod
+reads the same `DATABASE_URL` secret as the main deployment, runs the OLTP
+migrations on start (idempotent), and — when `analytics.enabled=true` — is
+wired to the in-cluster reports Service so the catalog-growth report tool
+is registered. `GET /healthz` backs the liveness/readiness probes; the MCP
+Streamable HTTP endpoint is served at both `/` and `/mcp`, so a client
+connects to `http://<release>-mcp.<namespace>.svc.cluster.local:8090/mcp`
+directly — there is no authentication layer in front of it (the fleet's
+static-bearer-key rollout was removed; this deployable is reachable only
+from inside the cluster).
+
+```sh
+helm upgrade --install facility-layout ./charts/facility-layout \
+  --set database.url="postgres://facility:***@postgres:5432/facility?sslmode=disable" \
+  --set mcp.enabled=true
+```
 
 Linted in CI with `ct lint --charts charts/facility-layout`.

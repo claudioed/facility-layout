@@ -152,9 +152,14 @@ func writeReportInternal(w http.ResponseWriter, r *http.Request, err error) {
 // service. A nil logger falls back to slog.Default(). The router is trace-free,
 // consistent with the rest of the analytics pipeline (facility-layout has no
 // OTel package for the analytics processes).
-func NewReportsRouter(h *ReportsHandlers, logger *slog.Logger) *chi.Mux {
+func NewReportsRouter(h *ReportsHandlers, logger *slog.Logger, opts ...RouterOption) *chi.Mux {
 	if logger == nil {
 		logger = slog.Default()
+	}
+
+	cfg := routerConfig{}
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
 	r := chi.NewRouter()
@@ -163,6 +168,7 @@ func NewReportsRouter(h *ReportsHandlers, logger *slog.Logger) *chi.Mux {
 	r.Use(middleware.Recoverer)
 
 	r.Get("/healthz", h.GetReportsHealthz)
+
 	r.Get("/reports/catalog-growth", h.GetCatalogGrowth)
 	r.Get("/reports/catalog-growth/freshness", h.GetCatalogGrowthFreshness)
 

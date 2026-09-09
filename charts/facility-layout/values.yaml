@@ -46,6 +46,23 @@ ingress:
           pathType: Prefix
   tls: []
 
+# Gateway API HTTPRoute, additive alongside ingress above. Disabled by
+# default so existing Ingress-based releases are unaffected; set
+# gatewayApi.enabled=true (and leave ingress.enabled=false) to route via a
+# Gateway API implementation instead (e.g. Kong's Ingress Controller acting
+# as an unmanaged GatewayClass). Mirrors the shape verified live in
+# warehouse-infra's fulfillment-execution Gateway API pilot.
+gatewayApi:
+  enabled: false
+  parentRefs:
+    - name: ""
+      namespace: ""
+      sectionName: "http"
+  hosts:
+    - path: /
+      pathType: PathPrefix
+  stripPath: true
+
 resources:
   limits:
     cpu: 500m
@@ -163,3 +180,30 @@ analytics:
       requests:
         cpu: 100m
         memory: 128Mi
+
+# --- MCP server (ADR-0007) ---
+# The Model Context Protocol server: a second deployable from the same image
+# (`/app/mcp`) exposing this context's read use cases as curated MCP tools
+# over Streamable HTTP. It reads the SAME OLTP database as the main
+# deployment (database.url / database.existingSecret) and, when analytics is
+# enabled, calls the reports Service for the catalog-growth report tool.
+# Disabled by default so existing releases are unaffected.
+mcp:
+  enabled: false
+  replicaCount: 1
+  httpAddr: ":8090"
+  service:
+    type: ClusterIP
+    port: 8090
+    targetPort: 8090
+  # Overrides the reports base URL the catalog-growth tool calls. When empty
+  # and analytics.enabled=true, defaults to the in-cluster reports Service.
+  reportsBaseUrl: ""
+  extraEnv: []
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi

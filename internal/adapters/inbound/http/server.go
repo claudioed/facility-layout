@@ -552,9 +552,8 @@ func writeJSON(w http.ResponseWriter, status int, body any) {
 
 // corsMiddleware allows the warehouse-console browser SPA (and this
 // service's own future MFE remote dev origin) to call this API directly
-// from the browser. Static-bearer-key auth, not cookies, so credentials
-// are never needed here. CORS_ALLOWED_ORIGINS overrides the local-dev
-// default (comma-separated) for staging/prod deployments.
+// from the browser. CORS_ALLOWED_ORIGINS overrides the local-dev default
+// (comma-separated) for staging/prod deployments.
 func corsMiddleware() func(http.Handler) http.Handler {
 	origins := []string{"http://localhost:5173", "http://localhost:5186"}
 	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
