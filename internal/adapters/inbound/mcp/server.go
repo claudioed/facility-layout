@@ -1,29 +1,13 @@
 package mcp
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// scopeKey is the context key under which the authenticated scope is carried
-// from the auth middleware into tool/resource handlers.
-type scopeKey struct{}
-
-// scopeFromContext returns the scope stored by the auth middleware, or the
-// empty scope if none is present (which auth.Allows treats as unauthorized).
-func scopeFromContext(ctx context.Context) Scope {
-	if s, ok := ctx.Value(scopeKey{}).(Scope); ok {
-		return s
-	}
-	return ""
-}
-
 // NewServer builds the MCP server for this bounded context with every read
-// tool, the scoped layout resource, and the explore_layout prompt registered.
-// Handlers read the authenticated scope from their context (placed there by
-// Handler's middleware).
+// tool, the layout resource, and the explore_layout prompt registered.
 //
 // facility-layout is a read-only Open Host Service, so no write tool is
 // registered — only reads over the warehouse map.
@@ -35,33 +19,17 @@ func NewServer(deps Deps) *mcp.Server {
 		},
 	)
 
-	deps.registerTools(server, scopeFromContext)
-	deps.registerResources(server, scopeFromContext)
-	deps.registerPrompts(server, scopeFromContext)
+	deps.registerTools(server)
+	deps.registerResources(server)
+	deps.registerPrompts(server)
 
 	return server
 }
 
-// Handler returns the Streamable HTTP handler for the MCP server, wrapped in
-// the auth middleware. Every request must carry a valid bearer key; the scope
-// it grants is placed in the request context for handlers to enforce per-tool.
-//
-// This is the single seam described in ADR-0007: replacing StaticKeyAuth with
-// an OAuth 2.1 resource-server Authenticator changes only what is passed here,
-// not any handler.
-func Handler(server *mcp.Server, auth Authenticator) http.Handler {
-	streamable := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		scope, ok := auth.Authenticate(r)
-		if !ok {
-			// Signal how to authenticate without leaking any detail about why
-			// the credential failed.
-			w.Header().Set("WWW-Authenticate", `Bearer realm="facility-layout-mcp"`)
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-		ctx := context.WithValue(r.Context(), scopeKey{}, scope)
-		streamable.ServeHTTP(w, r.WithContext(ctx))
-	})
+// Handler returns the Streamable HTTP handler for the MCP server. There is
+// no authentication layer in front of it: this deployable is reached only
+// from inside the cluster, and the fleet's static-bearer auth rollout was
+// removed (see the ADR recorded alongside this change).
+func Handler(server *mcp.Server) http.Handler {
+	return mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
 }

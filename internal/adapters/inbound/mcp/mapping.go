@@ -11,9 +11,7 @@
 //
 // facility-layout is a read-only Open Host Service: its warehouse map is
 // consumed, never mutated, by the rest of the estate. This server therefore
-// registers only read tools, a scoped resource, and a prompt — no write tool.
-// The read/read-write Scope seam in auth.go is kept identical to the pilot so
-// a future write tool needs no auth rework, but nothing here registers one.
+// registers only read tools, a resource, and a prompt — no write tool.
 package mcp
 
 import (

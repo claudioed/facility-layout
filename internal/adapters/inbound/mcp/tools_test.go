@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/events"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/memory"
@@ -10,6 +11,9 @@ import (
 	"github.com/claudioed/facility-layout/internal/domain/placement"
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 )
+
+// base is the deterministic clock every mcp test runs against.
+var base = time.Date(2026, 8, 22, 9, 0, 0, 0, time.UTC)
 
 // harness wires the read use cases the MCP adapter needs over in-memory
 // repos, seeding structure through the REAL write use cases so the read

@@ -8,9 +8,9 @@
 // the read use cases (GetSiteLayout, GetZoneGrid, ListSites) and exposes only
 // read tools.
 //
-// Auth is a static bearer key (no IdP): set MCP_READ_KEY (and, for the future
-// write seam, MCP_READWRITE_KEY) from a Kubernetes Secret. A request must
-// present a valid key; the scope it grants gates the tools.
+// There is no authentication layer in front of this server: the fleet's
+// static-bearer-key rollout was removed (see the ADR recorded alongside that
+// change). It is reachable only from inside the cluster.
 package main
 
 import (
@@ -24,7 +24,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/claudioed/facility-layout/internal/adapters/inbound/auth"
 	inboundmcp "github.com/claudioed/facility-layout/internal/adapters/inbound/mcp"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/memory"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/postgres"
@@ -93,8 +92,7 @@ func run() error {
 	}
 	server := inboundmcp.NewServer(deps)
 
-	authn := auth.NewStaticKeyAuth(authKeys(logger))
-	handler := newRouter(inboundmcp.Handler(server, authn))
+	handler := newRouter(inboundmcp.Handler(server))
 
 	srv := &http.Server{Addr: httpAddr, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 
@@ -114,16 +112,14 @@ func run() error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-// newRouter wraps the authenticated MCP handler in the process's HTTP surface:
+// newRouter wraps the MCP handler in the process's HTTP surface:
 //
-//   - GET /healthz answers 200 {"status":"ok"} WITHOUT authentication, so the
-//     Kubernetes liveness/readiness probes (which carry no bearer key) can
-//     see the process is up. It reveals nothing about the map.
+//   - GET /healthz answers 200 {"status":"ok"}, so the Kubernetes
+//     liveness/readiness probes can see the process is up.
 //   - The MCP Streamable HTTP endpoint is mounted at BOTH "/" and "/mcp":
 //     "/" keeps the original root mount working, "/mcp" is the convention
 //     warehouse-ops-agent's *_MCP_ENDPOINT values and the docs' examples
-//     use. Every request on either path still goes through the auth
-//     middleware inside mcpHandler.
+//     use.
 func newRouter(mcpHandler http.Handler) http.Handler {
 	r := chi.NewRouter()
 	r.Get("/healthz", healthz)
@@ -132,8 +128,8 @@ func newRouter(mcpHandler http.Handler) http.Handler {
 	return r
 }
 
-// healthz is the unauthenticated process-liveness endpoint; it mirrors the
-// shape cmd/facility-projector and cmd/facility-reports already expose.
+// healthz is the process-liveness endpoint; it mirrors the shape
+// cmd/facility-projector and cmd/facility-reports already expose.
 func healthz(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -181,22 +177,6 @@ func buildAdapters(databaseURL, migrationsPath string, logger *slog.Logger) (ada
 		aisles: postgres.NewAisleRepo(pool),
 		slots:  postgres.NewSlotRepo(pool),
 	}, pool.Close, nil
-}
-
-// authKeys reads the bearer keys from the environment through the shared
-// auth package's fleet convention: API_READ_KEY / API_READWRITE_KEY with
-// MCP_READ_KEY / MCP_READWRITE_KEY as the fallback, so one Secret can serve
-// both the REST and the MCP surface. The read-write class is kept for the
-// future write seam even though no write tool is registered yet. If no key is
-// set the server still starts but rejects every request (fail closed) — a
-// missing key must never mean "open to everyone". The keys themselves are
-// never logged.
-func authKeys(logger *slog.Logger) map[string]auth.Scope {
-	keys := auth.KeysFromEnv(os.Getenv)
-	if len(keys) == 0 {
-		logger.Warn("no MCP_READ_KEY/API_READ_KEY or MCP_READWRITE_KEY/API_READWRITE_KEY set; server will reject all requests")
-	}
-	return keys
 }
 
 func getenv(key, fallback string) string {

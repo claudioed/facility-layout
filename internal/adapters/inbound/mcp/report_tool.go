@@ -167,12 +167,12 @@ func GetCatalogGrowthReportForTest(ctx context.Context, client ReportsClient, in
 // registerReportTool adds the curated read-only catalog-growth report tool. It
 // is registered only when a reports client is configured (Deps.Reports != nil),
 // so an MCP deployment without the reports service simply does not expose it.
-func (d Deps) registerReportTool(server *mcp.Server, scopeOf func(context.Context) Scope) {
+func (d Deps) registerReportTool(server *mcp.Server) {
 	if d.Reports == nil {
 		return
 	}
 	readOnly := true
-	addTool(server, scopeOf, ScopeRead, &mcp.Tool{
+	addTool(server, &mcp.Tool{
 		Name:        "get_facility_catalog_growth_report",
 		Description: "Return the facility-layout 'Layout Catalog Growth & Change' report (slots registered/decommissioned, zones/aisles/location-types registered, placement rules defined, and bulk-import row tallies) for a time window, bucketed by day and optionally filtered by scope (a site code, a zone id, or the catalog-wide scope). Reads via the facility-reports REST service.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},

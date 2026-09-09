@@ -59,7 +59,6 @@ spec:
                   name: {{ include "facility-layout.databaseSecretName" . }}
                   key: {{ .Values.database.existingSecretKey }}
             {{- end }}
-            {{- include "facility-layout.authEnv" . | nindent 12 }}
             {{- if .Values.otel.enabled }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
               value: {{ .Values.otel.endpoint | quote }}

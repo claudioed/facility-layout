@@ -101,6 +101,7 @@ const sidebars: SidebarsConfig = {
         'adr/0012-standard-metrics-convention',
         'adr/0013-first-published-language-consumer',
         'adr/0014-rest-identity-adoption',
+        'adr/0015-remove-rest-mcp-auth',
       ],
     },
   ],

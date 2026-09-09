@@ -14,8 +14,6 @@ spec:
       app.kubernetes.io/component: mcp
   template:
     metadata:
-      annotations:
-        checksum/mcp-secret: {{ include (print $.Template.BasePath "/mcp-secret.yaml") . | sha256sum }}
       labels:
         {{- include "facility-layout.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: mcp
@@ -52,18 +50,6 @@ spec:
                   name: {{ include "facility-layout.databaseSecretName" . }}
                   key: {{ .Values.database.existingSecretKey }}
             {{- end }}
-            # Bearer keys (ADR-0007): read scope and the future read-write
-            # seam. Both come from the Secret; the binary never logs them.
-            - name: MCP_READ_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "facility-layout.mcpSecretName" . }}
-                  key: MCP_READ_KEY
-            - name: MCP_READWRITE_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ include "facility-layout.mcpSecretName" . }}
-                  key: MCP_READWRITE_KEY
             {{- if .Values.mcp.reportsBaseUrl }}
             - name: REPORTS_BASE_URL
               value: {{ .Values.mcp.reportsBaseUrl | quote }}

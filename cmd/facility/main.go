@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/claudioed/facility-layout/internal/adapters/inbound/auth"
 	inboundhttp "github.com/claudioed/facility-layout/internal/adapters/inbound/http"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/events"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/kafka"
@@ -96,11 +95,9 @@ func run() error {
 	}
 	defer closeAdapters()
 
-	authMW := restAuth(logger)
-
 	httpServer := &http.Server{
 		Addr:              httpAddr,
-		Handler:           inboundhttp.NewRouter(newServer(adapters, memory.SystemClock{}, locationMetrics), logger, inboundhttp.WithServiceName(serviceName), inboundhttp.WithAuth(authMW)),
+		Handler:           inboundhttp.NewRouter(newServer(adapters, memory.SystemClock{}, locationMetrics), logger, inboundhttp.WithServiceName(serviceName)),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -280,27 +277,6 @@ func buildAdapters(cfg publisherConfig, logger *slog.Logger) (adapterSet, func()
 		rules:         postgres.NewPlacementRuleRepo(pool),
 		publisher:     pub,
 	}, closeFn, nil
-}
-
-// restAuth builds the fleet-standard REST identity middleware (ADR-0014,
-// warehouse-ops-agent ADR 0005). Keys come from API_READ_KEY /
-// API_READWRITE_KEY (falling back to MCP_READ_KEY / MCP_READWRITE_KEY);
-// AUTH_MODE selects enforce|log|off. The default is "enforce" when at least
-// one key is configured and "off" — with a loud WARN — when none is, so a
-// local run without keys behaves exactly as before. Key material is never
-// logged.
-func restAuth(logger *slog.Logger) auth.Middleware {
-	authn := auth.NewStaticKeyAuth(auth.KeysFromEnv(os.Getenv))
-	defaultMode := auth.ModeOff
-	if authn.HasKeys() {
-		defaultMode = auth.ModeEnforce
-	}
-	mode := auth.ParseMode(os.Getenv("AUTH_MODE"), defaultMode)
-	if mode == auth.ModeOff {
-		logger.Warn("REST auth is OFF: no API_READ_KEY/API_READWRITE_KEY configured or AUTH_MODE=off")
-	}
-	logger.Info("REST auth configured", "mode", string(mode), "keys", len(auth.KeysFromEnv(os.Getenv)))
-	return auth.Middleware{Authn: authn, Mode: mode, Logger: logger}
 }
 
 func getenv(key, fallback string) string {
