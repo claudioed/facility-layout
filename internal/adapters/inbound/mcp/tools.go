@@ -10,6 +10,8 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/claudioed/facility-layout/internal/adapters/inbound/auth"
+
 	"github.com/claudioed/facility-layout/internal/application/usecases"
 )
 
@@ -149,7 +151,7 @@ func addTool[In, Out any](
 		)
 		defer span.End()
 
-		if !scopeAllows(scopeOf(ctx), required) {
+		if !auth.Allows(scopeOf(ctx), required) {
 			err := fmt.Errorf("tool %q requires %s scope", tool.Name, required)
 			span.SetStatus(codes.Error, "unauthorized")
 			return nil, zero, err

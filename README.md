@@ -189,9 +189,30 @@ migrate -source file://migrations -database "$DATABASE_URL" up
 | `OTEL_SERVICE_NAME` | `facility-layout` | `service.name` on every span, metric and log record |
 | `SERVICE_VERSION` | `dev` | `service.version`; overridden by `-ldflags "-X main.serviceVersion=..."` |
 | `ENVIRONMENT` | `local` | `deployment.environment.name` |
+| `AUTH_MODE` | `enforce` if a key is set, else `off` | REST identity mode (ADR-0014): `enforce` rejects unauthenticated/under-scoped requests (401/403, RFC 7807), `log` lets them through but logs `auth: would-reject`, `off` disables the middleware (WARN at startup) |
+| `API_READ_KEY` | *(unset)* | Static bearer key granting the **read** scope (GET/HEAD/OPTIONS). Falls back to `MCP_READ_KEY` |
+| `API_READWRITE_KEY` | *(unset)* | Static bearer key granting the **read-write** scope (every method). Falls back to `MCP_READWRITE_KEY` |
 
 See [Observability](#observability) for what each of the OTel variables
 actually changes.
+
+### REST authentication
+
+Every route except `/healthz` sits behind the fleet-standard static bearer
+key middleware (`internal/adapters/inbound/auth`, ADR-0014 — adopting
+warehouse-ops-agent ADR 0005). The same package authenticates the MCP
+server, so one Secret can serve both surfaces.
+
+```sh
+API_READ_KEY=dev-read API_READWRITE_KEY=dev-rw go run ./cmd/facility
+curl -H "Authorization: Bearer dev-read" http://localhost:8080/sites        # 200
+curl -X POST -H "Authorization: Bearer dev-read" http://localhost:8080/sites # 403 insufficient-scope
+curl http://localhost:8080/sites                                             # 401 + WWW-Authenticate
+curl http://localhost:8080/healthz                                           # 200, never authenticated
+```
+
+Without any key the service logs `REST auth is OFF` and behaves exactly as
+before; `AUTH_MODE=log` is the observe-before-enforce rollout mode.
 
 ### Container
 
@@ -244,6 +265,7 @@ connection to `default_transaction_read_only=on` for defence in depth. See
 | `ANALYTICS_MIGRATIONS_PATH` | `migrations/analytics` | Analytical golang-migrate SQL files (projector only) |
 | `ADMIN_ADDR` | `:8091` | Projector health endpoint |
 | `HTTP_ADDR` | `:8092` | Reports REST listen address (reader) |
+| `AUTH_MODE` / `API_READ_KEY` / `API_READWRITE_KEY` | *(as above)* | The reader mounts the same middleware; every `/reports/...` route requires the **read** scope |
 | `REPORTS_BASE_URL` | *(unset)* | When set, `cmd/mcp` registers `get_facility_catalog_growth_report` calling the reports REST |
 
 

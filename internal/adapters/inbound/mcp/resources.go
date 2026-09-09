@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/claudioed/facility-layout/internal/adapters/inbound/auth"
 )
 
 // layoutURIScheme is the scheme+authority prefix of the site-layout resource
@@ -28,7 +30,7 @@ func (d Deps) registerResources(server *mcp.Server, scopeOf func(context.Context
 		MIMEType:    "application/json",
 	}, func(ctx context.Context, req *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
 		uri := req.Params.URI
-		if !scopeAllows(scopeOf(ctx), ScopeRead) {
+		if !auth.Allows(scopeOf(ctx), ScopeRead) {
 			return nil, fmt.Errorf("resource %q requires read scope", uri)
 		}
 		siteCode, ok := strings.CutPrefix(uri, layoutURIScheme)

@@ -13,6 +13,7 @@ import (
 	"github.com/riandyrn/otelchi"
 	otelchimetric "github.com/riandyrn/otelchi/metric"
 
+	"github.com/claudioed/facility-layout/internal/adapters/inbound/auth"
 	"github.com/claudioed/facility-layout/internal/application/usecases"
 	"github.com/claudioed/facility-layout/internal/domain/placement"
 	"github.com/claudioed/facility-layout/internal/domain/shared"
@@ -27,6 +28,7 @@ type RouterOption func(*routerConfig)
 
 type routerConfig struct {
 	serviceName string
+	auth        *auth.Middleware
 }
 
 // WithServiceName sets the service name otelchi stamps on HTTP spans and
@@ -37,6 +39,30 @@ func WithServiceName(name string) RouterOption {
 			cfg.serviceName = name
 		}
 	}
+}
+
+// WithAuth mounts the fleet-standard REST identity middleware (ADR-0014,
+// warehouse-ops-agent ADR 0005) on every route group EXCEPT /healthz, which
+// stays open so Kubernetes probes (which carry no bearer key) keep working.
+// Without this option the router runs exactly as before — the composition
+// root decides the mode (enforce/log/off), never the adapter. The middleware
+// carries this service's own RFC 7807 problem-type base.
+func WithAuth(mw auth.Middleware) RouterOption {
+	return func(cfg *routerConfig) {
+		if mw.ProblemBase == "" {
+			mw.ProblemBase = problemBaseURI
+		}
+		cfg.auth = &mw
+	}
+}
+
+// authHandler returns the configured auth middleware, or a pass-through when
+// the composition root wired none (existing handler tests run in "off").
+func (cfg routerConfig) authHandler() func(http.Handler) http.Handler {
+	if cfg.auth == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return cfg.auth.Handler
 }
 
 // Server holds every use case the HTTP adapter depends on.
@@ -107,43 +133,52 @@ func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handle
 	r.Use(middleware.Recoverer)
 	r.Use(corsMiddleware())
 
+	// /healthz stays OUTSIDE the auth group: liveness/readiness probes carry
+	// no bearer key and the body reveals nothing about the map.
 	r.Get("/healthz", s.handleHealthz)
 
-	r.Route("/sites", func(r chi.Router) {
-		r.Post("/", s.handleRegisterSite)
-		r.Get("/", s.handleListSites)
-		r.Get("/{siteCode}", s.handleGetSite)
-		r.Get("/{siteCode}/layout", s.handleGetSiteLayout)
-		r.Post("/{siteCode}/zones", s.handleRegisterZone)
-		r.Get("/{siteCode}/zones", s.handleListZones)
-	})
+	// Every domain route group sits behind the REST identity middleware
+	// (ADR-0014): GET/HEAD/OPTIONS need the read scope, everything else
+	// read-write. In "off" mode (no keys configured) it is a pass-through.
+	r.Group(func(r chi.Router) {
+		r.Use(cfg.authHandler())
 
-	r.Route("/zones", func(r chi.Router) {
-		r.Get("/{zoneId}", s.handleGetZone)
-		r.Get("/{zoneId}/grid", s.handleGetZoneGrid)
-		r.Post("/{zoneId}/aisles", s.handleRegisterAisle)
-		r.Get("/{zoneId}/aisles", s.handleListAisles)
-		r.Get("/{zoneId}/aisles/{aisleCode}", s.handleGetAisle)
-	})
+		r.Route("/sites", func(r chi.Router) {
+			r.Post("/", s.handleRegisterSite)
+			r.Get("/", s.handleListSites)
+			r.Get("/{siteCode}", s.handleGetSite)
+			r.Get("/{siteCode}/layout", s.handleGetSiteLayout)
+			r.Post("/{siteCode}/zones", s.handleRegisterZone)
+			r.Get("/{siteCode}/zones", s.handleListZones)
+		})
 
-	r.Route("/location-types", func(r chi.Router) {
-		r.Post("/", s.handleRegisterLocationType)
-		r.Get("/", s.handleListLocationTypes)
-		r.Get("/{name}", s.handleGetLocationType)
-	})
+		r.Route("/zones", func(r chi.Router) {
+			r.Get("/{zoneId}", s.handleGetZone)
+			r.Get("/{zoneId}/grid", s.handleGetZoneGrid)
+			r.Post("/{zoneId}/aisles", s.handleRegisterAisle)
+			r.Get("/{zoneId}/aisles", s.handleListAisles)
+			r.Get("/{zoneId}/aisles/{aisleCode}", s.handleGetAisle)
+		})
 
-	r.Route("/placement-rules", func(r chi.Router) {
-		r.Post("/", s.handleDefinePlacementRule)
-		r.Get("/", s.handleListPlacementRules)
-		r.Get("/{ruleId}", s.handleGetPlacementRule)
-	})
+		r.Route("/location-types", func(r chi.Router) {
+			r.Post("/", s.handleRegisterLocationType)
+			r.Get("/", s.handleListLocationTypes)
+			r.Get("/{name}", s.handleGetLocationType)
+		})
 
-	r.Route("/locations", func(r chi.Router) {
-		r.Post("/", s.handleRegisterLocationSlot)
-		r.Post("/import", s.handleImportFacilityLayout)
-		r.Get("/{locationCode}", s.handleGetLocationSlot)
-		r.Get("/{locationCode}/classification", s.handleGetLocationClassification)
-		r.Post("/{locationCode}/decommission", s.handleDecommissionLocationSlot)
+		r.Route("/placement-rules", func(r chi.Router) {
+			r.Post("/", s.handleDefinePlacementRule)
+			r.Get("/", s.handleListPlacementRules)
+			r.Get("/{ruleId}", s.handleGetPlacementRule)
+		})
+
+		r.Route("/locations", func(r chi.Router) {
+			r.Post("/", s.handleRegisterLocationSlot)
+			r.Post("/import", s.handleImportFacilityLayout)
+			r.Get("/{locationCode}", s.handleGetLocationSlot)
+			r.Get("/{locationCode}/classification", s.handleGetLocationClassification)
+			r.Post("/{locationCode}/decommission", s.handleDecommissionLocationSlot)
+		})
 	})
 
 	return r

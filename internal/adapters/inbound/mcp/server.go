@@ -12,7 +12,7 @@ import (
 type scopeKey struct{}
 
 // scopeFromContext returns the scope stored by the auth middleware, or the
-// empty scope if none is present (which scopeAllows treats as unauthorized).
+// empty scope if none is present (which auth.Allows treats as unauthorized).
 func scopeFromContext(ctx context.Context) Scope {
 	if s, ok := ctx.Value(scopeKey{}).(Scope); ok {
 		return s

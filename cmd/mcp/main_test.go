@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/claudioed/facility-layout/internal/adapters/inbound/auth"
 	inboundmcp "github.com/claudioed/facility-layout/internal/adapters/inbound/mcp"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/memory"
 	"github.com/claudioed/facility-layout/internal/application/usecases"
@@ -25,8 +26,8 @@ func testRouter(t *testing.T) http.Handler {
 		GetZoneGrid:   &usecases.GetZoneGrid{Zones: zones, Aisles: aisles, Slots: slots},
 		ListSites:     &usecases.ListSites{Sites: sites},
 	})
-	auth := inboundmcp.NewStaticKeyAuth(map[string]inboundmcp.Scope{"read-key": inboundmcp.ScopeRead})
-	return newRouter(inboundmcp.Handler(server, auth))
+	authn := auth.NewStaticKeyAuth(map[string]auth.Scope{"read-key": auth.ScopeRead})
+	return newRouter(inboundmcp.Handler(server, authn))
 }
 
 func TestHealthz_IsUnauthenticated(t *testing.T) {

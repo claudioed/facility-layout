@@ -6,6 +6,8 @@ import (
 	"time"
 
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/claudioed/facility-layout/internal/adapters/inbound/auth"
 )
 
 // base is the deterministic clock every mcp test runs against.
@@ -21,14 +23,14 @@ func TestScopeGating_DeniesWithoutReadScope(t *testing.T) {
 	unauth := context.Background()
 
 	t.Run("empty-scope context denied at the read guard", func(t *testing.T) {
-		if scopeAllows(scopeFromContext(unauth), ScopeRead) {
+		if auth.Allows(scopeFromContext(unauth), ScopeRead) {
 			t.Fatal("empty-scope context must not satisfy ScopeRead")
 		}
 	})
 
 	t.Run("read scope satisfies read", func(t *testing.T) {
 		ctx := context.WithValue(context.Background(), scopeKey{}, ScopeRead)
-		if !scopeAllows(scopeFromContext(ctx), ScopeRead) {
+		if !auth.Allows(scopeFromContext(ctx), ScopeRead) {
 			t.Fatal("read scope must satisfy ScopeRead")
 		}
 	})
@@ -37,7 +39,7 @@ func TestScopeGating_DeniesWithoutReadScope(t *testing.T) {
 		// The read-write scope class exists for a future write tool; a
 		// read-only key must not clear ScopeReadWrite.
 		ctx := context.WithValue(context.Background(), scopeKey{}, ScopeRead)
-		if scopeAllows(scopeFromContext(ctx), ScopeReadWrite) {
+		if auth.Allows(scopeFromContext(ctx), ScopeReadWrite) {
 			t.Fatal("read scope must NOT satisfy ScopeReadWrite")
 		}
 	})

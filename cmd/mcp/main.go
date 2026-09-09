@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/claudioed/facility-layout/internal/adapters/inbound/auth"
 	inboundmcp "github.com/claudioed/facility-layout/internal/adapters/inbound/mcp"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/memory"
 	"github.com/claudioed/facility-layout/internal/adapters/outbound/postgres"
@@ -92,8 +93,8 @@ func run() error {
 	}
 	server := inboundmcp.NewServer(deps)
 
-	auth := inboundmcp.NewStaticKeyAuth(authKeys(logger))
-	handler := newRouter(inboundmcp.Handler(server, auth))
+	authn := auth.NewStaticKeyAuth(authKeys(logger))
+	handler := newRouter(inboundmcp.Handler(server, authn))
 
 	srv := &http.Server{Addr: httpAddr, Handler: handler, ReadHeaderTimeout: 5 * time.Second}
 
@@ -182,21 +183,18 @@ func buildAdapters(databaseURL, migrationsPath string, logger *slog.Logger) (ada
 	}, pool.Close, nil
 }
 
-// authKeys reads the bearer keys from the environment. MCP_READ_KEY grants
-// read scope; MCP_READWRITE_KEY grants read-write (kept for the future write
-// seam even though no write tool is registered yet). If neither is set the
-// server still starts but rejects every request (fail closed) — a missing key
-// must never mean "open to everyone". The keys themselves are never logged.
-func authKeys(logger *slog.Logger) map[string]inboundmcp.Scope {
-	keys := make(map[string]inboundmcp.Scope)
-	if k := os.Getenv("MCP_READ_KEY"); k != "" {
-		keys[k] = inboundmcp.ScopeRead
-	}
-	if k := os.Getenv("MCP_READWRITE_KEY"); k != "" {
-		keys[k] = inboundmcp.ScopeReadWrite
-	}
+// authKeys reads the bearer keys from the environment through the shared
+// auth package's fleet convention: API_READ_KEY / API_READWRITE_KEY with
+// MCP_READ_KEY / MCP_READWRITE_KEY as the fallback, so one Secret can serve
+// both the REST and the MCP surface. The read-write class is kept for the
+// future write seam even though no write tool is registered yet. If no key is
+// set the server still starts but rejects every request (fail closed) — a
+// missing key must never mean "open to everyone". The keys themselves are
+// never logged.
+func authKeys(logger *slog.Logger) map[string]auth.Scope {
+	keys := auth.KeysFromEnv(os.Getenv)
 	if len(keys) == 0 {
-		logger.Warn("no MCP_READ_KEY or MCP_READWRITE_KEY set; server will reject all requests")
+		logger.Warn("no MCP_READ_KEY/API_READ_KEY or MCP_READWRITE_KEY/API_READWRITE_KEY set; server will reject all requests")
 	}
 	return keys
 }
