@@ -1,0 +1,461 @@
+asyncapi: 2.6.0
+
+info:
+  title: Facility Layout Domain Events
+  version: "1.0.0"
+  description: >
+    Domain-event catalog for the **facility-layout** bounded context, the
+    system of record for where things physically are in the building: the
+    site's structural hierarchy (Site, Area, Zone, Aisle) and the coded
+    storage slots inside it. This context is a Generic Subdomain and an
+    **Open Host Service** — these events ARE its Published Language, and
+    every downstream service is a Conformist to them. Unlike a service that
+    forwards a curated subset, this context's Kafka publisher
+    (`internal/adapters/outbound/kafka/publisher.go`) emits **every** domain
+    event to the integration topic — the whole Published Language.
+
+
+    **Envelope.** Every message on this channel is wrapped in the
+    warehouse-systems flat integration envelope: `event_id` (publisher-minted
+    UUID), `event_type` (the reverse-DNS type below), `occurred_at`
+    (RFC 3339), `source` (always the literal string `facility-layout`), and
+    `data` carrying the domain event's own JSON verbatim. Note the `data`
+    payload itself also carries `eventName`, `eventType` and `occurredAt`
+    fields — the domain event's struct tags are the wire shape, so the type
+    information appears at both levels.
+
+
+    **The `event_type` attribute** follows the platform-wide reverse-DNS
+    convention `com.warehouse.<subdomain>.<bounded-context>.<entity>.<EventName>`
+    — all lowercase except the final PascalCase event name, and the entity
+    segment carries no hyphen even for multi-word aggregate names. This
+    service's subdomain segment is `wms`: bin-accurate location is WMS-tier
+    in the domain reference. Example:
+    `com.warehouse.wms.facility-layout.locationslot.LocationSlotRegistered`.
+
+
+    **Partitioning and ordering.** The Kafka message key is the identity of
+    the aggregate that raised the event (site code, zone id, aisle id,
+    location code, rule id, location type name), so all events for one
+    aggregate land on the same partition and per-aggregate order is
+    preserved. `FacilityLayoutImported` has no single aggregate identity and
+    keys on its event type.
+
+
+    **Live consumer.** `inventory-storage` maintains a local read model of
+    location classifications fed by this topic
+    (`internal/adapters/outbound/facilitycache/`, selected with
+    `LOCATION_LOOKUP_MODE=kafka`), replacing its per-stow synchronous
+    `GET /locations/{locationCode}/classification` call. It consumes
+    **ZoneRegistered**, **LocationSlotRegistered** and
+    **LocationSlotDecommissioned**, replaying the topic from the first
+    offset on every process start under a per-instance-unique consumer
+    group, and gates its readiness on that replay completing. The remaining
+    five messages are published but have no wired consumer today — they are
+    Published Language available for future Conformists, stated so a
+    downstream team cannot mistake an available event for a consumed one.
+    See facility-layout ADR-0009 (integration publishing) and
+    inventory-storage ADR-0013 (the location-classification cache).
+  contact:
+    name: Warehouse Systems Platform Team
+    url: https://github.com/claudioed/facility-layout
+    email: claudioed.oliveira@gmail.com
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+tags:
+  - name: facility-layout
+    description: >
+      The facility-layout bounded context (wms subdomain) — the authoritative
+      record of the warehouse's physical structure: sites, zones, aisles and
+      coded location slots.
+  - name: site
+    description: >
+      Events raised by the Site aggregate: a physical facility/building added
+      to the warehouse map.
+  - name: zone
+    description: >
+      Events raised by the Zone aggregate: a behavioral region inside a
+      site's area, carrying temperature class and hazmat attributes.
+  - name: aisle
+    description: >
+      Events raised by the Aisle aggregate: a physical corridor inside a
+      zone, with walk-sequence and traversal direction.
+  - name: locationtype
+    description: >
+      Events raised by the LocationType aggregate: a reusable slot
+      shape/kind with weight and volume capacity.
+  - name: placementrule
+    description: >
+      Events raised by the PlacementRule aggregate: a rule constraining
+      which LocationTypes are legal in which Zones.
+  - name: locationslot
+    description: >
+      Events raised by the LocationSlot aggregate: the coded leaf slots of
+      the warehouse map — registration, decommissioning, and bulk import.
+
+servers:
+  production:
+    url: kafka.warehouse-systems.internal:9092
+    protocol: kafka
+    description: >
+      The shared warehouse-systems Kafka broker (the in-cluster release,
+      reachable from the host at `localhost:9092`), addressed via the
+      `KAFKA_BROKERS` environment variable. The Kafka publisher is selected
+      with `EVENT_PUBLISHER=kafka`; the default (unset) keeps the Postgres
+      outbox / log publisher, so tests and local runs never need a broker.
+
+defaultContentType: application/json
+
+channels:
+  warehouse.facility.events:
+    description: >
+      The single outbound integration topic for this bounded context, named
+      after the `Topic` constant in
+      `internal/adapters/outbound/kafka/publisher.go`
+      (`warehouse.facility.events`). Every domain event this context raises
+      is published here when `EVENT_PUBLISHER=kafka` — the whole Published
+      Language, not a subset. The one live consumer today is
+      inventory-storage's location-classification cache (ZoneRegistered,
+      LocationSlotRegistered, LocationSlotDecommissioned); everything else
+      is available, unconsumed Published Language. There is a second,
+      separate topic, `warehouse.facility.analytics`, feeding this service's
+      own analytical read model (the Layout Catalog Growth & Change report);
+      it has exactly one consumer — this service's own
+      `cmd/facility-projector` — and is not part of the cross-context
+      integration contract described here.
+    subscribe:
+      operationId: onFacilityEvent
+      summary: Consume facility-layout's Published Language.
+      description: >
+        Subscribe to every structural fact about the warehouse map. At-least-
+        once delivery is the consumer's problem: deduplicate on `event_id`,
+        and expect to see the full history on a from-first-offset replay.
+        A consumer building a local read model should follow the
+        inventory-storage precedent: per-process-unique consumer group,
+        FirstOffset replay, readiness gated on catching up to the high
+        watermark observed at start.
+      message:
+        oneOf:
+          - $ref: '#/components/messages/siteRegistered'
+          - $ref: '#/components/messages/zoneRegistered'
+          - $ref: '#/components/messages/aisleRegistered'
+          - $ref: '#/components/messages/locationTypeRegistered'
+          - $ref: '#/components/messages/placementRuleDefined'
+          - $ref: '#/components/messages/locationSlotRegistered'
+          - $ref: '#/components/messages/locationSlotDecommissioned'
+          - $ref: '#/components/messages/facilityLayoutImported'
+
+components:
+  schemas:
+    envelopeBase:
+      type: object
+      description: >
+        The warehouse-systems flat integration envelope. `data` carries the
+        domain event's own JSON verbatim.
+      required: [event_id, event_type, occurred_at, source, data]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+          description: Publisher-minted unique id. Consumers deduplicate on it.
+        event_type:
+          type: string
+          description: >
+            Reverse-DNS Published Language type,
+            `com.warehouse.wms.facility-layout.<entity>.<EventName>`.
+        occurred_at:
+          type: string
+          format: date-time
+          description: When the domain fact occurred (not when it was published).
+        source:
+          type: string
+          const: facility-layout
+        data:
+          type: object
+          description: The domain event's own JSON payload.
+
+    eventDataBase:
+      type: object
+      description: >
+        Fields present in every event's `data` payload — the domain event
+        base struct's own serialization.
+      required: [eventName, eventType, occurredAt]
+      properties:
+        eventName:
+          type: string
+          description: The bare PascalCase event name.
+        eventType:
+          type: string
+          description: Same reverse-DNS type as the envelope's `event_type`.
+        occurredAt:
+          type: string
+          format: date-time
+
+    temperatureClass:
+      type: string
+      enum: [Ambient, Chilled, Frozen]
+      description: What a physical zone can hold, thermally.
+
+    direction:
+      type: string
+      enum: [OneWay, TwoWay]
+      description: How an aisle may be traversed.
+
+  messages:
+    siteRegistered:
+      name: SiteRegistered
+      title: Site registered
+      tags: [{ name: site }]
+      summary: A physical facility/building was added to the warehouse map.
+      description: >
+        Raised by `RegisterSite`. Kafka key: `siteCode`. No consumer wired
+        today.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/envelopeBase'
+          - type: object
+            properties:
+              event_type:
+                const: com.warehouse.wms.facility-layout.site.SiteRegistered
+              data:
+                allOf:
+                  - $ref: '#/components/schemas/eventDataBase'
+                  - type: object
+                    required: [siteCode, siteName]
+                    properties:
+                      siteCode:
+                        type: string
+                        description: Uppercase alphanumeric, unique. e.g. `WH1`.
+                      siteName:
+                        type: string
+
+    zoneRegistered:
+      name: ZoneRegistered
+      title: Zone registered
+      tags: [{ name: zone }]
+      summary: A behavioral zone was added inside a Site's area.
+      description: >
+        Raised by `RegisterZone`. Kafka key: `zoneId`. **Consumed live** by
+        inventory-storage's location-classification cache — the zone's
+        `hazmat` and `temperatureClass` attributes are exactly what its
+        StowStock placement check reads.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/envelopeBase'
+          - type: object
+            properties:
+              event_type:
+                const: com.warehouse.wms.facility-layout.zone.ZoneRegistered
+              data:
+                allOf:
+                  - $ref: '#/components/schemas/eventDataBase'
+                  - type: object
+                    required: [zoneId, siteCode, areaCode, zoneCode, temperatureClass, hazmat]
+                    properties:
+                      zoneId:
+                        type: string
+                      siteCode:
+                        type: string
+                      areaCode:
+                        type: string
+                      zoneCode:
+                        type: string
+                      temperatureClass:
+                        $ref: '#/components/schemas/temperatureClass'
+                      hazmat:
+                        type: boolean
+
+    aisleRegistered:
+      name: AisleRegistered
+      title: Aisle registered
+      tags: [{ name: aisle }]
+      summary: A physical corridor was added inside a Zone.
+      description: >
+        Raised by `RegisterAisle`. Kafka key: `aisleId`. No consumer wired
+        today.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/envelopeBase'
+          - type: object
+            properties:
+              event_type:
+                const: com.warehouse.wms.facility-layout.aisle.AisleRegistered
+              data:
+                allOf:
+                  - $ref: '#/components/schemas/eventDataBase'
+                  - type: object
+                    required: [aisleId, zoneId, aisleCode, sequenceHint, direction]
+                    properties:
+                      aisleId:
+                        type: string
+                      zoneId:
+                        type: string
+                      aisleCode:
+                        type: string
+                      sequenceHint:
+                        type: integer
+                        description: Walk-order position within the zone.
+                      direction:
+                        $ref: '#/components/schemas/direction'
+
+    locationTypeRegistered:
+      name: LocationTypeRegistered
+      title: Location type registered
+      tags: [{ name: locationtype }]
+      summary: A reusable slot shape/kind was defined.
+      description: >
+        Raised by `RegisterLocationType`. Kafka key: `locationType`. No
+        consumer wired today.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/envelopeBase'
+          - type: object
+            properties:
+              event_type:
+                const: com.warehouse.wms.facility-layout.locationtype.LocationTypeRegistered
+              data:
+                allOf:
+                  - $ref: '#/components/schemas/eventDataBase'
+                  - type: object
+                    required: [locationType, maxWeightKg, maxVolumeM3]
+                    properties:
+                      locationType:
+                        type: string
+                        description: e.g. `PalletRack`, `ShelfBin`.
+                      maxWeightKg:
+                        type: number
+                      maxVolumeM3:
+                        type: number
+
+    placementRuleDefined:
+      name: PlacementRuleDefined
+      title: Placement rule defined
+      tags: [{ name: placementrule }]
+      summary: >
+        A rule constraining which LocationTypes are legal in which Zones was
+        declared.
+      description: >
+        Raised by `DefinePlacementRule`. Kafka key: `ruleId`. No consumer
+        wired today.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/envelopeBase'
+          - type: object
+            properties:
+              event_type:
+                const: com.warehouse.wms.facility-layout.placementrule.PlacementRuleDefined
+              data:
+                allOf:
+                  - $ref: '#/components/schemas/eventDataBase'
+                  - type: object
+                    required: [ruleId, locationType, effect, predicate]
+                    properties:
+                      ruleId:
+                        type: string
+                      locationType:
+                        type: string
+                      effect:
+                        type: string
+                        description: Allow or deny.
+                      predicate:
+                        type: string
+                        description: The zone-matching predicate expression.
+
+    locationSlotRegistered:
+      name: LocationSlotRegistered
+      title: Location slot registered
+      tags: [{ name: locationslot }]
+      summary: A coded leaf slot now exists on the warehouse map.
+      description: >
+        Raised by `RegisterLocationSlot`, and once per successful row of
+        `ImportFacilityLayout`. Kafka key: `locationCode`. **Consumed live**
+        by inventory-storage's location-classification cache, which joins
+        the slot to its parent zone's attributes via `zoneId`.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/envelopeBase'
+          - type: object
+            properties:
+              event_type:
+                const: com.warehouse.wms.facility-layout.locationslot.LocationSlotRegistered
+              data:
+                allOf:
+                  - $ref: '#/components/schemas/eventDataBase'
+                  - type: object
+                    required: [locationCode, aisleId, zoneId, locationType, maxWeightKg, maxVolumeM3]
+                    properties:
+                      locationCode:
+                        type: string
+                        description: >
+                          The full coded location, e.g.
+                          `WH1-STOR-AMB-A07-03-02-B`.
+                      aisleId:
+                        type: string
+                      zoneId:
+                        type: string
+                      locationType:
+                        type: string
+                      maxWeightKg:
+                        type: number
+                      maxVolumeM3:
+                        type: number
+
+    locationSlotDecommissioned:
+      name: LocationSlotDecommissioned
+      title: Location slot decommissioned
+      tags: [{ name: locationslot }]
+      summary: A coded slot was permanently retired.
+      description: >
+        Raised by `DecommissionLocationSlot`. Kafka key: `locationCode`.
+        **Consumed live** by inventory-storage's location-classification
+        cache, which evicts the slot (its stow placement check then
+        fails open for that location, by design). Decommissioning is
+        irreversible — there is no compensating event.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/envelopeBase'
+          - type: object
+            properties:
+              event_type:
+                const: com.warehouse.wms.facility-layout.locationslot.LocationSlotDecommissioned
+              data:
+                allOf:
+                  - $ref: '#/components/schemas/eventDataBase'
+                  - type: object
+                    required: [locationCode]
+                    properties:
+                      locationCode:
+                        type: string
+
+    facilityLayoutImported:
+      name: FacilityLayoutImported
+      title: Facility layout imported
+      tags: [{ name: locationslot }]
+      summary: A bulk layout import completed.
+      description: >
+        Raised once per `ImportFacilityLayout` call, summarising rows
+        submitted/imported/rejected — in addition to, not instead of, the
+        per-slot `LocationSlotRegistered` events for each successful row.
+        Kafka key: the event type (no single aggregate identity). No
+        consumer wired today.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/envelopeBase'
+          - type: object
+            properties:
+              event_type:
+                const: com.warehouse.wms.facility-layout.locationslot.FacilityLayoutImported
+              data:
+                allOf:
+                  - $ref: '#/components/schemas/eventDataBase'
+                  - type: object
+                    required: [rowsSubmitted, slotsImported, rowsRejected]
+                    properties:
+                      rowsSubmitted:
+                        type: integer
+                      slotsImported:
+                        type: integer
+                      rowsRejected:
+                        type: integer
