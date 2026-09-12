@@ -357,7 +357,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 			name: "RegisterLocationType: duplicate check fails",
 			run: func(_ *testing.T, h *harness) error {
 				uc := &usecases.RegisterLocationType{LocationTypes: &faultyLocationTypeRepo{LocationTypeRepo: h.locationTypes, failFind: true}, Events: h.publisher, Clock: h.clock}
-				_, err := uc.Execute(h.ctx(), placement.PalletRack, capacity)
+				_, err := uc.Execute(h.ctx(), placement.PalletRack, placement.Storage, capacity)
 				return err
 			},
 		},
@@ -365,7 +365,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 			name: "RegisterLocationType: save fails",
 			run: func(_ *testing.T, h *harness) error {
 				uc := &usecases.RegisterLocationType{LocationTypes: &faultyLocationTypeRepo{LocationTypeRepo: h.locationTypes, failSave: true}, Events: h.publisher, Clock: h.clock}
-				_, err := uc.Execute(h.ctx(), placement.PalletRack, capacity)
+				_, err := uc.Execute(h.ctx(), placement.PalletRack, placement.Storage, capacity)
 				return err
 			},
 		},
@@ -373,7 +373,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 			name: "RegisterLocationType: publish fails",
 			run: func(_ *testing.T, h *harness) error {
 				uc := &usecases.RegisterLocationType{LocationTypes: h.locationTypes, Events: faultyPublisher{}, Clock: h.clock}
-				_, err := uc.Execute(h.ctx(), placement.PalletRack, capacity)
+				_, err := uc.Execute(h.ctx(), placement.PalletRack, placement.Storage, capacity)
 				return err
 			},
 		},
@@ -435,7 +435,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 				uc := slotUseCase(h, func(uc *usecases.RegisterLocationSlot) {
 					uc.Slots = &faultySlotRepo{SlotRepo: h.slots, failFind: true}
 				})
-				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{})
+				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{}, "", nil)
 				return err
 			},
 		},
@@ -446,7 +446,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 				uc := slotUseCase(h, func(uc *usecases.RegisterLocationSlot) {
 					uc.Sites = &faultySiteRepo{SiteRepo: h.sites, failFind: true}
 				})
-				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{})
+				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{}, "", nil)
 				return err
 			},
 		},
@@ -457,7 +457,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 				uc := slotUseCase(h, func(uc *usecases.RegisterLocationSlot) {
 					uc.Zones = &faultyZoneRepo{ZoneRepo: h.zones, failFind: true}
 				})
-				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{})
+				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{}, "", nil)
 				return err
 			},
 		},
@@ -468,7 +468,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 				uc := slotUseCase(h, func(uc *usecases.RegisterLocationSlot) {
 					uc.Aisles = &faultyAisleRepo{AisleRepo: h.aisles, failFind: true}
 				})
-				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{})
+				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{}, "", nil)
 				return err
 			},
 		},
@@ -479,7 +479,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 				uc := slotUseCase(h, func(uc *usecases.RegisterLocationSlot) {
 					uc.LocationTypes = &faultyLocationTypeRepo{LocationTypeRepo: h.locationTypes, failFind: true}
 				})
-				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{})
+				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{}, "", nil)
 				return err
 			},
 		},
@@ -490,7 +490,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 				uc := slotUseCase(h, func(uc *usecases.RegisterLocationSlot) {
 					uc.Rules = &faultyRuleRepo{PlacementRuleRepo: h.rules, failList: true}
 				})
-				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{})
+				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{}, "", nil)
 				return err
 			},
 		},
@@ -501,7 +501,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 				uc := slotUseCase(h, func(uc *usecases.RegisterLocationSlot) {
 					uc.Slots = &faultySlotRepo{SlotRepo: h.slots, failSave: true}
 				})
-				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{})
+				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{}, "", nil)
 				return err
 			},
 		},
@@ -510,7 +510,7 @@ func TestUseCasesPropagateInfrastructureFailures(t *testing.T) {
 			run: func(_ *testing.T, h *harness) error {
 				h.seedAmbientAisle()
 				uc := slotUseCase(h, func(uc *usecases.RegisterLocationSlot) { uc.Events = faultyPublisher{} })
-				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{})
+				_, err := uc.Execute(h.ctx(), code, placement.PalletRack, shared.Capacity{}, "", nil)
 				return err
 			},
 		},

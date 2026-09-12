@@ -1,0 +1,70 @@
+---
+id: register-fixed-structure
+title: "Register a fixed structure"
+description: "Adds a site-scoped physical obstacle — a wall, column, office, conveyor, or other fixed object — to the warehouse map (ADR-0017). A FixedStructure is not a location: nothing can be stowed at it. The site must already exist. Publishes FixedStructureRegistered."
+sidebar_label: "Register a fixed structure"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Register a fixed structure"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/sites/{siteCode}/structures"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Adds a site-scoped physical obstacle — a wall, column, office, conveyor, or other fixed object — to the warehouse map (ADR-0017). A FixedStructure is not a location: nothing can be stowed at it. The site must already exist. Publishes FixedStructureRegistered.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./register-fixed-structure.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./register-fixed-structure.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./register-fixed-structure.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -244,7 +244,7 @@ func TestPostgresSlotRepoRoundTrip(t *testing.T) {
 
 	attrs := placement.ZoneAttributes{ZoneID: z.ID(), ZoneCode: z.ZoneCode(), TemperatureClass: z.TemperatureClass()}
 	for _, raw := range []string{"WH1-STOR-AMB-A07-03-02-B", "WH1-STOR-AMB-A07-03-01-A", "WH1-STOR-AMB-A07-03-02-A"} {
-		built, err := slot.NewLocationSlot(mustCode(t, raw), palletRack, shared.Capacity{}, attrs, nil)
+		built, err := slot.NewLocationSlot(mustCode(t, raw), palletRack, shared.Capacity{}, slot.FunctionalAttributes{}, attrs, nil)
 		if err != nil {
 			t.Fatalf("unexpected error building %q: %v", raw, err)
 		}

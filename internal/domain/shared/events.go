@@ -100,15 +100,20 @@ func NewAisleRegistered(occurredAt time.Time, aisleID, zoneID, aisleCode string,
 type LocationTypeRegistered struct {
 	base
 	LocationType string  `json:"locationType"`
-	MaxWeightKg  float64 `json:"maxWeightKg"`
-	MaxVolumeM3  float64 `json:"maxVolumeM3"`
+	Role         string  `json:"role"`
+	MaxWeightKg  float64 `json:"maxWeightKg,omitempty"`
+	MaxVolumeM3  float64 `json:"maxVolumeM3,omitempty"`
 }
 
-// NewLocationTypeRegistered builds a LocationTypeRegistered event.
-func NewLocationTypeRegistered(occurredAt time.Time, locationType string, capacity Capacity) LocationTypeRegistered {
+// NewLocationTypeRegistered builds a LocationTypeRegistered event. Role is
+// additive (ADR-0016): every LocationType registered before this field
+// existed is "Storage". MaxWeightKg/MaxVolumeM3 are omitted when the type's
+// role does not require a capacity envelope.
+func NewLocationTypeRegistered(occurredAt time.Time, locationType string, role string, capacity Capacity) LocationTypeRegistered {
 	return LocationTypeRegistered{
 		base:         newBase("locationtype", "LocationTypeRegistered", occurredAt),
 		LocationType: locationType,
+		Role:         role,
 		MaxWeightKg:  capacity.MaxWeightKg(),
 		MaxVolumeM3:  capacity.MaxVolumeM3(),
 	}
@@ -138,22 +143,31 @@ func NewPlacementRuleDefined(occurredAt time.Time, ruleID, locationType, effect,
 // LocationSlotRegistered: a coded leaf slot now exists on the warehouse map.
 type LocationSlotRegistered struct {
 	base
-	LocationCode string  `json:"locationCode"`
-	AisleID      string  `json:"aisleId"`
-	ZoneID       string  `json:"zoneId"`
-	LocationType string  `json:"locationType"`
-	MaxWeightKg  float64 `json:"maxWeightKg"`
-	MaxVolumeM3  float64 `json:"maxVolumeM3"`
+	LocationCode string   `json:"locationCode"`
+	AisleID      string   `json:"aisleId"`
+	ZoneID       string   `json:"zoneId"`
+	LocationType string   `json:"locationType"`
+	Role         string   `json:"role"`
+	DockFlow     string   `json:"dockFlow,omitempty"`
+	Activities   []string `json:"activities,omitempty"`
+	MaxWeightKg  float64  `json:"maxWeightKg,omitempty"`
+	MaxVolumeM3  float64  `json:"maxVolumeM3,omitempty"`
 }
 
-// NewLocationSlotRegistered builds a LocationSlotRegistered event.
-func NewLocationSlotRegistered(occurredAt time.Time, code LocationCode, locationType string, capacity Capacity) LocationSlotRegistered {
+// NewLocationSlotRegistered builds a LocationSlotRegistered event. Role,
+// dockFlow, and activities are additive fields (ADR-0016): every slot
+// registered before they existed is "Storage" with neither dockFlow nor
+// activities set.
+func NewLocationSlotRegistered(occurredAt time.Time, code LocationCode, locationType string, role string, dockFlow string, activities []string, capacity Capacity) LocationSlotRegistered {
 	return LocationSlotRegistered{
 		base:         newBase("locationslot", "LocationSlotRegistered", occurredAt),
 		LocationCode: code.String(),
 		AisleID:      code.AisleID(),
 		ZoneID:       code.ZoneID(),
 		LocationType: locationType,
+		Role:         role,
+		DockFlow:     dockFlow,
+		Activities:   activities,
 		MaxWeightKg:  capacity.MaxWeightKg(),
 		MaxVolumeM3:  capacity.MaxVolumeM3(),
 	}
@@ -190,5 +204,96 @@ func NewFacilityLayoutImported(occurredAt time.Time, submitted, imported, reject
 		RowsSubmitted: submitted,
 		SlotsImported: imported,
 		RowsRejected:  rejected,
+	}
+}
+
+// LocationGeometryUpdated: a coded slot's physical position/footprint was
+// set or changed (ADR-0017).
+type LocationGeometryUpdated struct {
+	base
+	LocationCode string  `json:"locationCode"`
+	XM           float64 `json:"xM"`
+	YM           float64 `json:"yM"`
+	ZM           float64 `json:"zM"`
+	WidthM       float64 `json:"widthM"`
+	DepthM       float64 `json:"depthM"`
+	HeightM      float64 `json:"heightM"`
+	PickSequence *int    `json:"pickSequence,omitempty"`
+}
+
+// NewLocationGeometryUpdated builds a LocationGeometryUpdated event.
+func NewLocationGeometryUpdated(occurredAt time.Time, code LocationCode, position Point3D, dimensions Dimensions, pickSequence *int) LocationGeometryUpdated {
+	return LocationGeometryUpdated{
+		base:         newBase("locationslot", "LocationGeometryUpdated", occurredAt),
+		LocationCode: code.String(),
+		XM:           position.XM(),
+		YM:           position.YM(),
+		ZM:           position.ZM(),
+		WidthM:       dimensions.WidthM(),
+		DepthM:       dimensions.DepthM(),
+		HeightM:      dimensions.HeightM(),
+		PickSequence: pickSequence,
+	}
+}
+
+// AisleGeometryUpdated: an aisle's travel centreline was set or changed
+// (ADR-0017).
+type AisleGeometryUpdated struct {
+	base
+	AisleID string  `json:"aisleId"`
+	StartXM float64 `json:"startXM"`
+	StartYM float64 `json:"startYM"`
+	StartZM float64 `json:"startZM"`
+	EndXM   float64 `json:"endXM"`
+	EndYM   float64 `json:"endYM"`
+	EndZM   float64 `json:"endZM"`
+	LengthM float64 `json:"lengthM"`
+}
+
+// NewAisleGeometryUpdated builds an AisleGeometryUpdated event.
+func NewAisleGeometryUpdated(occurredAt time.Time, aisleID string, centreline Segment) AisleGeometryUpdated {
+	return AisleGeometryUpdated{
+		base:    newBase("aisle", "AisleGeometryUpdated", occurredAt),
+		AisleID: aisleID,
+		StartXM: centreline.Start().XM(),
+		StartYM: centreline.Start().YM(),
+		StartZM: centreline.Start().ZM(),
+		EndXM:   centreline.End().XM(),
+		EndYM:   centreline.End().YM(),
+		EndZM:   centreline.End().ZM(),
+		LengthM: centreline.LengthM(),
+	}
+}
+
+// FixedStructureRegistered: a site-scoped physical obstacle (wall, column,
+// office, conveyor, or other) was added to the warehouse map (ADR-0017).
+type FixedStructureRegistered struct {
+	base
+	StructureID string  `json:"structureId"`
+	SiteCode    string  `json:"siteCode"`
+	Kind        string  `json:"kind"`
+	XM          float64 `json:"xM"`
+	YM          float64 `json:"yM"`
+	ZM          float64 `json:"zM"`
+	WidthM      float64 `json:"widthM"`
+	DepthM      float64 `json:"depthM"`
+	HeightM     float64 `json:"heightM"`
+	Label       string  `json:"label"`
+}
+
+// NewFixedStructureRegistered builds a FixedStructureRegistered event.
+func NewFixedStructureRegistered(occurredAt time.Time, structureID, siteCode, kind string, footprint Rect, label string) FixedStructureRegistered {
+	return FixedStructureRegistered{
+		base:        newBase("structure", "FixedStructureRegistered", occurredAt),
+		StructureID: structureID,
+		SiteCode:    siteCode,
+		Kind:        kind,
+		XM:          footprint.Origin().XM(),
+		YM:          footprint.Origin().YM(),
+		ZM:          footprint.Origin().ZM(),
+		WidthM:      footprint.Size().WidthM(),
+		DepthM:      footprint.Size().DepthM(),
+		HeightM:     footprint.Size().HeightM(),
+		Label:       label,
 	}
 }

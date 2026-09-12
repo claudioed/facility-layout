@@ -18,6 +18,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/application/usecases"
 	"github.com/claudioed/facility-layout/internal/domain/site"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
+	"github.com/claudioed/facility-layout/internal/domain/structure"
 )
 
 // tool-boundary DTOs -----------------------------------------------------------
@@ -35,13 +36,30 @@ type siteRef struct {
 }
 
 // siteLayoutDTO is the compact, nested projection of one Site's structure —
-// zones -> aisles -> slot codes — returned by get_site_layout. It is a bounded
-// view: each slot is reduced to its code string, not the full aggregate, so
-// the payload stays scoped to "what is the shape of this site" rather than
-// dumping every slot's capacity envelope.
+// zones -> aisles -> slot codes -> fixed structures — returned by
+// get_site_layout. It is a bounded view: each slot is reduced to its code
+// string, not the full aggregate, so the payload stays scoped to "what is
+// the shape of this site" rather than dumping every slot's capacity
+// envelope. Structures and per-slot geometry (ADR-0017) are included only
+// when actually present.
 type siteLayoutDTO struct {
-	Site  siteRef         `json:"site"`
-	Zones []zoneLayoutDTO `json:"zones"`
+	Site            siteRef             `json:"site"`
+	Zones           []zoneLayoutDTO     `json:"zones"`
+	FixedStructures []fixedStructureDTO `json:"fixedStructures,omitempty"`
+}
+
+// fixedStructureDTO is the compact projection of one FixedStructure
+// (ADR-0017): its kind, footprint, and label.
+type fixedStructureDTO struct {
+	ID      string  `json:"id"`
+	Kind    string  `json:"kind"`
+	XM      float64 `json:"xM"`
+	YM      float64 `json:"yM"`
+	ZM      float64 `json:"zM"`
+	WidthM  float64 `json:"widthM"`
+	DepthM  float64 `json:"depthM"`
+	HeightM float64 `json:"heightM"`
+	Label   string  `json:"label"`
 }
 
 // zoneLayoutDTO is one Zone and its aisles within a site layout.
@@ -95,6 +113,49 @@ type gridCellDTO struct {
 	SlotCodes []string `json:"slotCodes"`
 }
 
+// functionalLocationDTO is the compact projection of a non-storage-role
+// slot returned by list_functional_locations: code, coordinates, role, and
+// the role-conditional dockFlow/activities (ADR-0016). Deliberately not
+// the full LocationSlot shape (no locationType/capacity/status noise) —
+// the tool answers "where are this site's dock doors", not "describe this
+// slot in full".
+type functionalLocationDTO struct {
+	LocationCode string   `json:"locationCode"`
+	ZoneID       string   `json:"zoneId"`
+	AisleID      string   `json:"aisleId"`
+	Role         string   `json:"role"`
+	DockFlow     string   `json:"dockFlow,omitempty"`
+	Activities   []string `json:"activities,omitempty"`
+}
+
+// toFunctionalLocationDTO maps a domain LocationSlot to its compact tool DTO.
+func toFunctionalLocationDTO(s *slot.LocationSlot) functionalLocationDTO {
+	code := s.Code()
+	f := s.Functional()
+	return functionalLocationDTO{
+		LocationCode: code.String(),
+		ZoneID:       code.ZoneID(),
+		AisleID:      code.AisleID(),
+		Role:         string(s.Role()),
+		DockFlow:     string(f.DockFlow()),
+		Activities:   activityStringsMCP(f.Activities()),
+	}
+}
+
+// activityStringsMCP converts a slot's Activity set to plain strings, or nil
+// when there are none, so "activities" is omitted for every non-WorkCenter
+// location in the tool response.
+func activityStringsMCP(activities []slot.Activity) []string {
+	if len(activities) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(activities))
+	for _, a := range activities {
+		out = append(out, string(a))
+	}
+	return out
+}
+
 // mapping functions ------------------------------------------------------------
 
 // toSiteRef maps a domain Site to its compact reference DTO.
@@ -106,6 +167,9 @@ func toSiteRef(s *site.Site) siteRef {
 // nested tool DTO. Nothing but this file's DTOs crosses the tool boundary.
 func toSiteLayoutDTO(layout *usecases.SiteLayout) siteLayoutDTO {
 	out := siteLayoutDTO{Site: toSiteRef(layout.Site), Zones: make([]zoneLayoutDTO, 0, len(layout.Zones))}
+	for _, f := range layout.FixedStructures {
+		out.FixedStructures = append(out.FixedStructures, toFixedStructureDTO(f))
+	}
 	for _, zl := range layout.Zones {
 		z := zoneLayoutDTO{
 			ZoneID:           zl.Zone.ID(),
@@ -163,4 +227,20 @@ func slotCodes(slots []*slot.LocationSlot) []string {
 		codes = append(codes, s.Code().String())
 	}
 	return codes
+}
+
+// toFixedStructureDTO maps a domain FixedStructure to its compact tool DTO.
+func toFixedStructureDTO(f *structure.FixedStructure) fixedStructureDTO {
+	footprint := f.Footprint()
+	return fixedStructureDTO{
+		ID:      f.ID(),
+		Kind:    string(f.Kind()),
+		XM:      footprint.Origin().XM(),
+		YM:      footprint.Origin().YM(),
+		ZM:      footprint.Origin().ZM(),
+		WidthM:  footprint.Size().WidthM(),
+		DepthM:  footprint.Size().DepthM(),
+		HeightM: footprint.Size().HeightM(),
+		Label:   f.Label(),
+	}
 }

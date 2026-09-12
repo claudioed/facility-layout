@@ -2,11 +2,14 @@ package usecases
 
 import (
 	"context"
+	"sort"
 
 	"github.com/claudioed/facility-layout/internal/application/ports"
 	"github.com/claudioed/facility-layout/internal/domain/aisle"
 	"github.com/claudioed/facility-layout/internal/domain/placement"
 	"github.com/claudioed/facility-layout/internal/domain/shared"
+	"github.com/claudioed/facility-layout/internal/domain/slot"
+	"github.com/claudioed/facility-layout/internal/domain/structure"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
 )
 
@@ -117,4 +120,66 @@ func (uc *GetLocationClassification) Execute(ctx context.Context, code shared.Lo
 		return nil, ErrZoneNotFound
 	}
 	return z, nil
+}
+
+// ListLocationsByRole reads every LocationSlot at a site whose LocationRole
+// matches (ADR-0016). It answers "where are this site's dock doors" without
+// walking the full nested site layout.
+type ListLocationsByRole struct {
+	Sites ports.SiteRepo
+	Zones ports.ZoneRepo
+	Slots ports.SlotRepo
+}
+
+// Execute returns every slot at siteCode whose Role() equals role, ordered
+// zone -> aisle -> bay -> level -> position, or ErrSiteNotFound.
+func (uc *ListLocationsByRole) Execute(ctx context.Context, siteCode string, role placement.LocationRole) ([]*slot.LocationSlot, error) {
+	s, err := uc.Sites.FindByCode(ctx, siteCode)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return nil, ErrSiteNotFound
+	}
+
+	zones, err := uc.Zones.ListBySite(ctx, siteCode)
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(zones, func(i, j int) bool { return zones[i].ID() < zones[j].ID() })
+
+	out := make([]*slot.LocationSlot, 0)
+	for _, z := range zones {
+		slots, err := uc.Slots.ListByZone(ctx, z.ID())
+		if err != nil {
+			return nil, err
+		}
+		for _, sl := range slots {
+			if sl.Role() == role {
+				out = append(out, sl)
+			}
+		}
+	}
+	sortSlotsByCoordinate(out)
+	return out, nil
+}
+
+// ListFixedStructures reads every FixedStructure at a site (ADR-0017): the
+// walls, columns, offices, and conveyors drawn on its floor plan.
+type ListFixedStructures struct {
+	Sites      ports.SiteRepo
+	Structures ports.FixedStructureRepo
+}
+
+// Execute returns every structure at siteCode, ordered by id, or
+// ErrSiteNotFound.
+func (uc *ListFixedStructures) Execute(ctx context.Context, siteCode string) ([]*structure.FixedStructure, error) {
+	s, err := uc.Sites.FindByCode(ctx, siteCode)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return nil, ErrSiteNotFound
+	}
+	return uc.Structures.ListBySite(ctx, siteCode)
 }

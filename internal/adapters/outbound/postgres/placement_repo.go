@@ -24,39 +24,45 @@ func NewLocationTypeRepo(pool *pgxpool.Pool) *LocationTypeRepo {
 // Save upserts the location type.
 func (r *LocationTypeRepo) Save(ctx context.Context, t placement.LocationType) error {
 	_, err := r.pool.Exec(ctx, `
-		INSERT INTO location_types (name, default_max_weight_kg, default_max_volume_m3)
-		VALUES ($1, $2, $3)
+		INSERT INTO location_types (name, role, default_max_weight_kg, default_max_volume_m3)
+		VALUES ($1, $2, $3, $4)
 		ON CONFLICT (name) DO UPDATE SET
+			role = EXCLUDED.role,
 			default_max_weight_kg = EXCLUDED.default_max_weight_kg,
 			default_max_volume_m3 = EXCLUDED.default_max_volume_m3
-	`, t.Name(), t.DefaultCapacity().MaxWeightKg(), t.DefaultCapacity().MaxVolumeM3())
+	`, t.Name(), string(t.Role()), nullableFloat(t.DefaultCapacity()), nullableVolume(t.DefaultCapacity()))
 	return err
 }
 
 // FindByName returns the location type, or (nil, nil) when it does not exist.
 func (r *LocationTypeRepo) FindByName(ctx context.Context, name string) (*placement.LocationType, error) {
-	var weight, volume float64
+	var role string
+	var weight, volume *float64
 	err := r.pool.QueryRow(ctx, `
-		SELECT default_max_weight_kg, default_max_volume_m3 FROM location_types WHERE name = $1
-	`, name).Scan(&weight, &volume)
+		SELECT role, default_max_weight_kg, default_max_volume_m3 FROM location_types WHERE name = $1
+	`, name).Scan(&role, &weight, &volume)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	capacity, err := shared.NewCapacity(weight, volume)
+	capacity, err := capacityFromNullable(weight, volume)
 	if err != nil {
 		return nil, err
 	}
-	t := placement.RehydrateLocationType(name, capacity)
+	locationRole, err := placement.ParseLocationRole(role)
+	if err != nil {
+		return nil, err
+	}
+	t := placement.RehydrateLocationType(name, locationRole, capacity)
 	return &t, nil
 }
 
 // List returns every location type, ordered by name.
 func (r *LocationTypeRepo) List(ctx context.Context) ([]placement.LocationType, error) {
 	rows, err := r.pool.Query(ctx, `
-		SELECT name, default_max_weight_kg, default_max_volume_m3 FROM location_types ORDER BY name
+		SELECT name, role, default_max_weight_kg, default_max_volume_m3 FROM location_types ORDER BY name
 	`)
 	if err != nil {
 		return nil, err
@@ -65,16 +71,20 @@ func (r *LocationTypeRepo) List(ctx context.Context) ([]placement.LocationType, 
 
 	out := make([]placement.LocationType, 0)
 	for rows.Next() {
-		var name string
-		var weight, volume float64
-		if err := rows.Scan(&name, &weight, &volume); err != nil {
+		var name, role string
+		var weight, volume *float64
+		if err := rows.Scan(&name, &role, &weight, &volume); err != nil {
 			return nil, err
 		}
-		capacity, err := shared.NewCapacity(weight, volume)
+		capacity, err := capacityFromNullable(weight, volume)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, placement.RehydrateLocationType(name, capacity))
+		locationRole, err := placement.ParseLocationRole(role)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, placement.RehydrateLocationType(name, locationRole, capacity))
 	}
 	return out, rows.Err()
 }
@@ -187,4 +197,36 @@ func derefString(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+// nullableFloat returns capacity's max weight as a pointer, or nil when the
+// capacity is the zero Capacity — a role that does not require a capacity
+// envelope (ADR-0016) persists NULL rather than a fabricated 0.
+func nullableFloat(capacity shared.Capacity) *float64 {
+	if capacity.IsZero() {
+		return nil
+	}
+	weight := capacity.MaxWeightKg()
+	return &weight
+}
+
+// nullableVolume returns capacity's max volume as a pointer, or nil under
+// the same rule as nullableFloat.
+func nullableVolume(capacity shared.Capacity) *float64 {
+	if capacity.IsZero() {
+		return nil
+	}
+	volume := capacity.MaxVolumeM3()
+	return &volume
+}
+
+// capacityFromNullable rebuilds a Capacity from possibly-NULL stored
+// weight/volume columns. Either being NULL (a role that does not require
+// capacity, ADR-0016) yields the zero Capacity; both being non-NULL
+// reconstructs and validates the envelope exactly as before.
+func capacityFromNullable(weight, volume *float64) (shared.Capacity, error) {
+	if weight == nil || volume == nil {
+		return shared.Capacity{}, nil
+	}
+	return shared.NewCapacity(*weight, *volume)
 }

@@ -44,6 +44,9 @@ var (
 	ErrDuplicateLocationType = errors.New("a location type with this name already exists")
 	// ErrDuplicatePlacementRule is returned when a rule id is already taken.
 	ErrDuplicatePlacementRule = errors.New("a placement rule with this id already exists")
+	// ErrDuplicateFixedStructure is returned when a fixed structure id is
+	// already taken.
+	ErrDuplicateFixedStructure = errors.New("a fixed structure with this id already exists")
 	// ErrDuplicateLocationCode is returned when a location code is already
 	// registered — including when the existing slot is Decommissioned,
 	// because decommission is one-way and a retired code is never

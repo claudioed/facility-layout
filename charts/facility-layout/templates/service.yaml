@@ -4,6 +4,7 @@ metadata:
   name: {{ include "facility-layout.fullname" . }}
   labels:
     {{- include "facility-layout.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -13,3 +14,4 @@ spec:
       name: http
   selector:
     {{- include "facility-layout.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: api

@@ -7,6 +7,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 	"github.com/claudioed/facility-layout/internal/domain/site"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
+	"github.com/claudioed/facility-layout/internal/domain/structure"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
 )
 
@@ -27,7 +28,7 @@ func toZoneResponse(z *zone.Zone) zoneResponse {
 }
 
 func toAisleResponse(a *aisle.Aisle) aisleResponse {
-	return aisleResponse{
+	out := aisleResponse{
 		AisleID:      a.ID(),
 		ZoneID:       a.ZoneID(),
 		AisleCode:    a.AisleCode(),
@@ -35,6 +36,23 @@ func toAisleResponse(a *aisle.Aisle) aisleResponse {
 		Direction:    string(a.Direction()),
 		Status:       string(a.Status()),
 	}
+	if centreline := a.Centreline(); !centreline.IsZero() {
+		out.Centreline = &segmentResponse{
+			Start: toPoint3DResponse(centreline.Start()),
+			End:   toPoint3DResponse(centreline.End()),
+		}
+	}
+	return out
+}
+
+// toPoint3DResponse maps a domain Point3D to its response DTO.
+func toPoint3DResponse(p shared.Point3D) point3DResponse {
+	return point3DResponse{XM: p.XM(), YM: p.YM(), ZM: p.ZM()}
+}
+
+// toDimensionsResponse maps a domain Dimensions to its response DTO.
+func toDimensionsResponse(d shared.Dimensions) dimensionsResponse {
+	return dimensionsResponse{WidthM: d.WidthM(), DepthM: d.DepthM(), HeightM: d.HeightM()}
 }
 
 func toCapacityResponse(c shared.Capacity) capacityResponse {
@@ -42,7 +60,7 @@ func toCapacityResponse(c shared.Capacity) capacityResponse {
 }
 
 func toLocationTypeResponse(t placement.LocationType) locationTypeResponse {
-	return locationTypeResponse{Name: t.Name(), DefaultCapacity: toCapacityResponse(t.DefaultCapacity())}
+	return locationTypeResponse{Name: t.Name(), Role: string(t.Role()), DefaultCapacity: toCapacityResponse(t.DefaultCapacity())}
 }
 
 func toPlacementRuleResponse(rule placement.PlacementRule) placementRuleResponse {
@@ -74,15 +92,43 @@ func toCoordinatesResponse(code shared.LocationCode) coordinatesResponse {
 
 func toLocationSlotResponse(s *slot.LocationSlot) locationSlotResponse {
 	code := s.Code()
-	return locationSlotResponse{
+	f := s.Functional()
+	out := locationSlotResponse{
 		LocationCode: code.String(),
 		ZoneID:       code.ZoneID(),
 		AisleID:      code.AisleID(),
 		Coordinates:  toCoordinatesResponse(code),
 		LocationType: s.LocationType(),
+		Role:         string(s.Role()),
+		DockFlow:     string(f.DockFlow()),
+		Activities:   activityStringsHTTP(f.Activities()),
 		Capacity:     toCapacityResponse(s.Capacity()),
 		Status:       string(s.Status()),
+		PickSequence: s.PickSequence(),
 	}
+	if position := s.Position(); !position.IsZero() {
+		p := toPoint3DResponse(position)
+		out.Position = &p
+	}
+	if dimensions := s.Dimensions(); !dimensions.IsZero() {
+		d := toDimensionsResponse(dimensions)
+		out.Dimensions = &d
+	}
+	return out
+}
+
+// activityStringsHTTP converts a slot's Activity set to plain strings for
+// the response DTO, or nil when there are none, so "activities" is omitted
+// entirely for every non-WorkCenter slot.
+func activityStringsHTTP(activities []slot.Activity) []string {
+	if len(activities) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(activities))
+	for _, a := range activities {
+		out = append(out, string(a))
+	}
+	return out
 }
 
 func toLocationClassificationResponse(z *zone.Zone) locationClassificationResponse {
@@ -107,10 +153,21 @@ func toImportRow(row importRowRequest) usecases.ImportRow {
 		Level:            row.Level,
 		Position:         row.Position,
 		LocationType:     row.LocationType,
+		DockFlow:         row.DockFlow,
+		Activities:       row.Activities,
+		PickSequence:     row.PickSequence,
 	}
 	if row.CapacityOverride != nil {
 		out.MaxWeightKg = row.CapacityOverride.MaxWeightKg
 		out.MaxVolumeM3 = row.CapacityOverride.MaxVolumeM3
+	}
+	if row.Geometry != nil {
+		out.XM = &row.Geometry.Position.XM
+		out.YM = &row.Geometry.Position.YM
+		out.ZM = &row.Geometry.Position.ZM
+		out.WidthM = &row.Geometry.Dimensions.WidthM
+		out.DepthM = &row.Geometry.Dimensions.DepthM
+		out.HeightM = &row.Geometry.Dimensions.HeightM
 	}
 	return out
 }
@@ -134,7 +191,15 @@ func toImportReportResponse(report *usecases.ImportReport) importReportResponse 
 }
 
 func toSiteLayoutResponse(layout *usecases.SiteLayout) siteLayoutResponse {
-	out := siteLayoutResponse{Site: toSiteResponse(layout.Site), Zones: make([]zoneLayoutResponse, 0, len(layout.Zones))}
+	out := siteLayoutResponse{
+		Site:            toSiteResponse(layout.Site),
+		Zones:           make([]zoneLayoutResponse, 0, len(layout.Zones)),
+		FixedStructures: make([]fixedStructureResponse, 0, len(layout.FixedStructures)),
+	}
+
+	for _, f := range layout.FixedStructures {
+		out.FixedStructures = append(out.FixedStructures, toFixedStructureResponse(f))
+	}
 
 	for _, zoneLayout := range layout.Zones {
 		zoneOut := zoneLayoutResponse{
@@ -201,4 +266,52 @@ func toZoneGridResponse(grid *usecases.ZoneGrid) zoneGridResponse {
 		out.Rows = append(out.Rows, gridRowResponse{Level: row.Level, Cells: cells})
 	}
 	return out
+}
+
+func toFixedStructureResponse(f *structure.FixedStructure) fixedStructureResponse {
+	footprint := f.Footprint()
+	return fixedStructureResponse{
+		ID:       f.ID(),
+		SiteCode: f.SiteCode(),
+		Kind:     string(f.Kind()),
+		Origin:   toPoint3DResponse(footprint.Origin()),
+		Size:     toDimensionsResponse(footprint.Size()),
+		Label:    f.Label(),
+	}
+}
+
+// fromPoint3DRequest maps a point3DRequest DTO to a domain Point3D.
+func fromPoint3DRequest(req point3DRequest) (shared.Point3D, error) {
+	return shared.NewPoint3D(req.XM, req.YM, req.ZM)
+}
+
+// fromDimensionsRequest maps a dimensionsRequest DTO to a domain Dimensions.
+func fromDimensionsRequest(req dimensionsRequest) (shared.Dimensions, error) {
+	return shared.NewDimensions(req.WidthM, req.DepthM, req.HeightM)
+}
+
+// fromSegmentRequest maps a segmentRequest DTO to a domain Segment.
+func fromSegmentRequest(req segmentRequest) (shared.Segment, error) {
+	start, err := fromPoint3DRequest(req.Start)
+	if err != nil {
+		return shared.Segment{}, err
+	}
+	end, err := fromPoint3DRequest(req.End)
+	if err != nil {
+		return shared.Segment{}, err
+	}
+	return shared.NewSegment(start, end)
+}
+
+// fromRectRequest maps a rectRequest DTO to a domain Rect.
+func fromRectRequest(req rectRequest) (shared.Rect, error) {
+	origin, err := fromPoint3DRequest(req.Origin)
+	if err != nil {
+		return shared.Rect{}, err
+	}
+	size, err := fromDimensionsRequest(req.Size)
+	if err != nil {
+		return shared.Rect{}, err
+	}
+	return shared.NewRect(origin, size)
 }

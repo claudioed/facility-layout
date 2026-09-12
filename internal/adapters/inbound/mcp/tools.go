@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/claudioed/facility-layout/internal/application/usecases"
+	"github.com/claudioed/facility-layout/internal/domain/placement"
 )
 
 // tracerName is the OTel instrumentation scope for MCP tool spans.
@@ -30,6 +31,8 @@ type Deps struct {
 	GetZoneGrid *usecases.GetZoneGrid
 	// ListSites is the existing read use case behind list_sites.
 	ListSites *usecases.ListSites
+	// ListLocationsByRole backs list_functional_locations (ADR-0016).
+	ListLocationsByRole *usecases.ListLocationsByRole
 	// Reports is the client of the facility-reports REST service, backing the
 	// curated get_facility_catalog_growth_report tool. When nil, that tool is
 	// not registered (an MCP deployment without the reports service).
@@ -90,6 +93,36 @@ func (d Deps) listSites(ctx context.Context, _ listSitesInput) (listSitesOutput,
 	return out, nil
 }
 
+// --- list_functional_locations --------------------------------------------------
+
+type listFunctionalLocationsInput struct {
+	SiteCode string `json:"siteCode" jsonschema:"the code of the site to search, e.g. WH1"`
+	Role     string `json:"role" jsonschema:"the LocationRole to filter on: Storage, Dock, Yard, WorkCenter, Drop, Staging, QC, Consolidation, or Shipping"`
+}
+
+type listFunctionalLocationsOutput struct {
+	Locations []functionalLocationDTO `json:"locations"`
+}
+
+func (d Deps) listFunctionalLocations(ctx context.Context, in listFunctionalLocationsInput) (listFunctionalLocationsOutput, error) {
+	if in.SiteCode == "" {
+		return listFunctionalLocationsOutput{}, fmt.Errorf("siteCode is required")
+	}
+	role, err := placement.ParseLocationRole(in.Role)
+	if err != nil {
+		return listFunctionalLocationsOutput{}, err
+	}
+	slots, err := d.ListLocationsByRole.Execute(ctx, in.SiteCode, role)
+	if err != nil {
+		return listFunctionalLocationsOutput{}, err
+	}
+	out := listFunctionalLocationsOutput{Locations: make([]functionalLocationDTO, 0, len(slots))}
+	for _, s := range slots {
+		out.Locations = append(out.Locations, toFunctionalLocationDTO(s))
+	}
+	return out, nil
+}
+
 // --- registration -------------------------------------------------------------
 
 // registerTools adds every tool to the server, each wrapped so its handler
@@ -117,6 +150,12 @@ func (d Deps) registerTools(server *mcp.Server) {
 		Description: "Return one zone's slots as a 2D grid: rows are levels, columns are (aisle, bay) pairs in walk order, each cell holds the location codes at that coordinate. Use it to reason about a single zone's rack layout in detail.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
 	}, d.getZoneGrid)
+
+	addTool(server, &mcp.Tool{
+		Name:        "list_functional_locations",
+		Description: "List a site's non-storage functional locations by role: dock doors, yard spots, work centers (pack/sort/QC/VAS stations), drop points, staging, consolidation, or shipping locations (ADR-0016). Use it to answer 'where are this site's dock doors' without walking the full site layout.",
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+	}, d.listFunctionalLocations)
 
 	// Curated read-only data-product tool, registered only when the reports
 	// client is configured (ADR-0010).

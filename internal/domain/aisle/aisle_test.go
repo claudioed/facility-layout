@@ -72,7 +72,7 @@ func TestAisleDecommissionIsOneWay(t *testing.T) {
 }
 
 func TestRehydrateAislePreservesPersistedState(t *testing.T) {
-	a := aisle.RehydrateAisle("WH1-STOR-AMB", "A09", 9, shared.OneWay, shared.UnderMaintenance)
+	a := aisle.RehydrateAisle("WH1-STOR-AMB", "A09", 9, shared.OneWay, shared.UnderMaintenance, shared.Segment{})
 	if a.ID() != "WH1-STOR-AMB-A09" {
 		t.Fatalf("unexpected id %q", a.ID())
 	}
