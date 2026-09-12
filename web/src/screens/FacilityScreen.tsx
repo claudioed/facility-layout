@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { FACILITY_API_BASE } from "../config";
-import type { Site, SiteLayout } from "../types";
+import type { LocationRole, Site, SiteLayout } from "../types";
 import { Card, StatusPill, DataTable, useFetch } from "@warehouse/ui-kit";
+import { RoleBadge, RoleFilterChips } from "../components/RoleBadge";
 
 /**
  * Facility list + drill-down layout browser. GET /sites lists every
@@ -13,9 +14,18 @@ import { Card, StatusPill, DataTable, useFetch } from "@warehouse/ui-kit";
  * meant for a "drawable" floor-plan projection -- a clean nested-card
  * tree is the v1 rendering of that; a real floor-plan/grid visualization
  * is a natural fast-follow once this pilot is validated.
+ *
+ * Each slot chip carries a role badge (ADR-0016) -- Storage locations
+ * render with a near-invisible marker, while Dock/Yard/WorkCenter/etc.
+ * chips get a colored glyph, so a non-storage functional location is
+ * visible at a glance in an otherwise dense wall of storage slots. The
+ * role filter chip row lets an operator narrow the whole tree down to
+ * just one role (e.g. "show me this site's dock doors") -- zones/aisles
+ * with no matching slot are hidden entirely rather than shown empty.
  */
 export function FacilityScreen() {
   const [selectedSite, setSelectedSite] = useState<string | null>(null);
+  const [roleFilter, setRoleFilter] = useState<LocationRole | null>(null);
 
   const {
     data: sites,
@@ -27,6 +37,22 @@ export function FacilityScreen() {
     ? `${FACILITY_API_BASE}/sites/${encodeURIComponent(selectedSite)}/layout`
     : null;
   const { data: layout, loading: layoutLoading, error: layoutError } = useFetch<SiteLayout>(layoutUrl);
+
+  // Apply the active role filter to the nested zone -> aisle -> slot tree:
+  // a zone/aisle with no slot matching the filter is dropped entirely
+  // rather than rendered empty, so narrowing to "Dock" collapses the tree
+  // down to only the zones/aisles that actually have dock doors.
+  const visibleZones = (layout?.zones ?? [])
+    .map((zone) => ({
+      ...zone,
+      aisles: zone.aisles
+        .map((aisle) => ({
+          ...aisle,
+          slots: roleFilter ? aisle.slots.filter((s) => s.role === roleFilter) : aisle.slots,
+        }))
+        .filter((aisle) => !roleFilter || aisle.slots.length > 0),
+    }))
+    .filter((zone) => !roleFilter || zone.aisles.length > 0);
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--wh-space-5)" }}>
@@ -108,13 +134,21 @@ export function FacilityScreen() {
                 <span>{layout.totals.slots} slots</span>
               </div>
 
+              <RoleFilterChips active={roleFilter} onChange={setRoleFilter} />
+
               {layout.zones.length === 0 && (
                 <div style={{ color: "var(--wh-color-text-muted)", fontSize: "var(--wh-font-size-sm)" }}>
                   No zones registered for this site yet.
                 </div>
               )}
 
-              {layout.zones.map((zone) => (
+              {layout.zones.length > 0 && visibleZones.length === 0 && (
+                <div style={{ color: "var(--wh-color-text-muted)", fontSize: "var(--wh-font-size-sm)" }}>
+                  No {roleFilter} locations at this site.
+                </div>
+              )}
+
+              {visibleZones.map((zone) => (
                 <section
                   key={zone.zoneId}
                   style={{
@@ -209,8 +243,11 @@ export function FacilityScreen() {
                               {aisle.slots.map((slot) => (
                                 <span
                                   key={slot.locationCode}
-                                  title={`${slot.locationType} · ${slot.status}`}
+                                  title={`${slot.locationType} · ${slot.role} · ${slot.status}`}
                                   style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
                                     fontFamily: "var(--wh-font-mono)",
                                     fontSize: "var(--wh-font-size-xs)",
                                     padding: "3px 8px",
@@ -220,6 +257,7 @@ export function FacilityScreen() {
                                     color: "var(--wh-color-text-muted)",
                                   }}
                                 >
+                                  <RoleBadge role={slot.role} dockFlow={slot.dockFlow} />
                                   {slot.locationCode}
                                 </span>
                               ))}

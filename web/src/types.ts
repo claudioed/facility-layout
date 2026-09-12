@@ -44,12 +44,30 @@ export interface LocationCoordinates {
   position: string;
 }
 
+/** LocationRole (ADR-0016): what a location on the map is FOR. Storage is
+ *  the default and only role that existed before this ADR. */
+export type LocationRole =
+  | "Storage"
+  | "Dock"
+  | "Yard"
+  | "WorkCenter"
+  | "Drop"
+  | "Staging"
+  | "QC"
+  | "Consolidation"
+  | "Shipping";
+
 export interface LocationSlot {
   locationCode: string;
   zoneId: string;
   aisleId: string;
   coordinates: LocationCoordinates;
   locationType: string;
+  role: LocationRole;
+  /** Set only when role is Dock (Inbound | Outbound | Both). */
+  dockFlow?: string;
+  /** Set only when role is WorkCenter (Pack, Sort, QC, VAS, ...). */
+  activities?: string[];
   capacity: Capacity;
   status: string;
 }
@@ -73,6 +91,7 @@ export interface Capacity {
 /** locationTypeResponse. */
 export interface LocationType {
   name: string;
+  role: LocationRole;
   defaultCapacity: Capacity;
 }
 
