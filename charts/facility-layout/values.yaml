@@ -207,3 +207,44 @@ mcp:
     requests:
       cpu: 100m
       memory: 128Mi
+
+# --- frontend (REMOTE Module Federation remote) ---
+# The operator SPA remote, built from web/ and served by its own
+# nginx-unprivileged pod. In the kind cluster it is reached through
+# warehouse-infra's Nginx web gateway at http://localhost/mfes/facility-layout/
+# -- never through Kong, which serves APIs only and must never handle HTML,
+# JavaScript, CSS, fonts or images.
+#
+# Deliberately NO ingress/httproute/gatewayApi block here: frontend path
+# routing is owned entirely by the Nginx web gateway, and the Service stays
+# ClusterIP so this is not a second host-facing entrypoint.
+#
+# Disabled by default so existing releases are unaffected; warehouse-infra
+# sets frontend.enabled=true and supplies the locally built image tag.
+frontend:
+  enabled: false
+  replicaCount: 1
+  image:
+    repository: warehouse/facility-layout-frontend
+    pullPolicy: IfNotPresent
+    tag: ""
+  service:
+    port: 80
+    targetPort: 8080
+  # nginx-unprivileged runs as uid/gid 101.
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 101
+    fsGroup: 101
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: ["ALL"]
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
