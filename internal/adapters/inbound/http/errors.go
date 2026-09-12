@@ -10,6 +10,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 	"github.com/claudioed/facility-layout/internal/domain/site"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
+	"github.com/claudioed/facility-layout/internal/domain/structure"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
 )
 
@@ -38,13 +39,16 @@ func statusFor(err error) int {
 		errors.Is(err, usecases.ErrDuplicateLocationType),
 		errors.Is(err, usecases.ErrDuplicatePlacementRule),
 		errors.Is(err, usecases.ErrDuplicateLocationCode),
+		errors.Is(err, usecases.ErrDuplicateFixedStructure),
 		errors.Is(err, usecases.ErrSiteNotActive),
 		errors.Is(err, usecases.ErrZoneNotActive),
 		errors.Is(err, usecases.ErrAisleNotActive),
 		errors.Is(err, site.ErrAlreadyDecommissioned),
 		errors.Is(err, zone.ErrAlreadyDecommissioned),
 		errors.Is(err, aisle.ErrAlreadyDecommissioned),
-		errors.Is(err, slot.ErrAlreadyDecommissioned):
+		errors.Is(err, aisle.ErrAisleDecommissioned),
+		errors.Is(err, slot.ErrAlreadyDecommissioned),
+		errors.Is(err, slot.ErrSlotDecommissioned):
 		return http.StatusConflict
 
 	case errors.Is(err, placement.ErrPlacementRuleViolated),
@@ -53,6 +57,8 @@ func statusFor(err error) int {
 		errors.Is(err, shared.ErrUnknownTemperatureClass),
 		errors.Is(err, shared.ErrUnknownDirection),
 		errors.Is(err, shared.ErrUnknownStatus),
+		errors.Is(err, shared.ErrInvalidZ),
+		errors.Is(err, shared.ErrInvalidDimensions),
 		errors.Is(err, placement.ErrUnknownEffect),
 		errors.Is(err, placement.ErrEmptyPredicate),
 		errors.Is(err, placement.ErrUnknownLocationRole),
@@ -61,8 +67,11 @@ func statusFor(err error) int {
 		errors.Is(err, slot.ErrDockFlowRequired),
 		errors.Is(err, slot.ErrWorkCenterActivitiesRequired),
 		errors.Is(err, slot.ErrFunctionalAttributesNotAllowed),
+		errors.Is(err, slot.ErrNegativePickSequence),
 		errors.Is(err, aisle.ErrNegativeSequenceHint),
-		errors.Is(err, slot.ErrZoneMismatch):
+		errors.Is(err, slot.ErrZoneMismatch),
+		errors.Is(err, structure.ErrUnknownKind),
+		errors.Is(err, structure.ErrEmptyFootprint):
 		return http.StatusUnprocessableEntity
 
 	case errors.Is(err, shared.ErrMalformedLocationCode),
@@ -83,6 +92,9 @@ func statusFor(err error) int {
 		errors.Is(err, placement.ErrEmptyRuleLocationType),
 		errors.Is(err, slot.ErrMissingLocationCode),
 		errors.Is(err, slot.ErrMissingLocationType),
+		errors.Is(err, structure.ErrEmptyID),
+		errors.Is(err, structure.ErrEmptySiteCode),
+		errors.Is(err, structure.ErrEmptyLabel),
 		errors.Is(err, usecases.ErrEmptyImport):
 		return http.StatusBadRequest
 
@@ -134,6 +146,8 @@ func problemFor(err error) problemInfo {
 		return problemInfo{"duplicate-placement-rule", "A placement rule with this id already exists"}
 	case errors.Is(err, usecases.ErrDuplicateLocationCode):
 		return problemInfo{"duplicate-location-code", "A location slot with this code already exists"}
+	case errors.Is(err, usecases.ErrDuplicateFixedStructure):
+		return problemInfo{"duplicate-fixed-structure", "A fixed structure with this id already exists"}
 
 	case errors.Is(err, usecases.ErrSiteNotActive):
 		return problemInfo{"site-not-active", "Site is not active"}
@@ -145,7 +159,9 @@ func problemFor(err error) problemInfo {
 	case errors.Is(err, site.ErrAlreadyDecommissioned),
 		errors.Is(err, zone.ErrAlreadyDecommissioned),
 		errors.Is(err, aisle.ErrAlreadyDecommissioned),
-		errors.Is(err, slot.ErrAlreadyDecommissioned):
+		errors.Is(err, aisle.ErrAisleDecommissioned),
+		errors.Is(err, slot.ErrAlreadyDecommissioned),
+		errors.Is(err, slot.ErrSlotDecommissioned):
 		return problemInfo{"already-decommissioned", "This structure is already decommissioned"}
 
 	case errors.Is(err, placement.ErrPlacementRuleViolated):
@@ -180,6 +196,16 @@ func problemFor(err error) problemInfo {
 		return problemInfo{"negative-sequence-hint", "Aisle sequence hint must not be negative"}
 	case errors.Is(err, slot.ErrZoneMismatch):
 		return problemInfo{"zone-mismatch", "Zone attributes do not match the location code's zone"}
+	case errors.Is(err, shared.ErrInvalidZ):
+		return problemInfo{"invalid-z", "Z coordinate must not be negative"}
+	case errors.Is(err, shared.ErrInvalidDimensions):
+		return problemInfo{"invalid-dimensions", "Width, depth, and height must all be greater than zero"}
+	case errors.Is(err, slot.ErrNegativePickSequence):
+		return problemInfo{"negative-pick-sequence", "Pick sequence must not be negative"}
+	case errors.Is(err, structure.ErrUnknownKind):
+		return problemInfo{"unknown-fixed-structure-kind", "Unknown fixed structure kind"}
+	case errors.Is(err, structure.ErrEmptyFootprint):
+		return problemInfo{"empty-fixed-structure-footprint", "Fixed structure requires a real footprint"}
 
 	case errors.Is(err, shared.ErrMalformedLocationCode),
 		errors.Is(err, shared.ErrEmptyLocationSegment),
@@ -199,6 +225,12 @@ func problemFor(err error) problemInfo {
 		return problemInfo{"empty-placement-rule-id", "Placement rule id must not be empty"}
 	case errors.Is(err, slot.ErrMissingLocationCode):
 		return problemInfo{"missing-location-code", "Location code is required"}
+	case errors.Is(err, structure.ErrEmptyID):
+		return problemInfo{"empty-fixed-structure-id", "Fixed structure requires an id"}
+	case errors.Is(err, structure.ErrEmptySiteCode):
+		return problemInfo{"empty-fixed-structure-site-code", "Fixed structure must be scoped to a site code"}
+	case errors.Is(err, structure.ErrEmptyLabel):
+		return problemInfo{"empty-fixed-structure-label", "Fixed structure requires a label"}
 	case errors.Is(err, usecases.ErrEmptyImport):
 		return problemInfo{"empty-import", "Facility layout import must contain at least one row"}
 

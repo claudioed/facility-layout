@@ -38,6 +38,7 @@ func newTestUseCases() *inboundhttp.Server {
 	slots := memory.NewSlotRepo()
 	locationTypes := memory.NewLocationTypeRepo()
 	rules := memory.NewPlacementRuleRepo()
+	structures := memory.NewFixedStructureRepo()
 	publisher := events.NewBufferedPublisher()
 	clock := memory.NewFixedClock(time.Date(2026, 8, 22, 9, 0, 0, 0, time.UTC))
 
@@ -68,8 +69,13 @@ func newTestUseCases() *inboundhttp.Server {
 			Sites: sites, Zones: zones, Aisles: aisles, Slots: slots,
 			LocationTypes: locationTypes, Rules: rules, Events: publisher, Clock: clock,
 		},
-		GetSiteLayout: &usecases.GetSiteLayout{Sites: sites, Zones: zones, Aisles: aisles, Slots: slots},
+		GetSiteLayout: &usecases.GetSiteLayout{Sites: sites, Zones: zones, Aisles: aisles, Slots: slots, Structures: structures},
 		GetZoneGrid:   &usecases.GetZoneGrid{Zones: zones, Aisles: aisles, Slots: slots},
+
+		SetLocationGeometry:    &usecases.SetLocationGeometry{Slots: slots, Events: publisher, Clock: clock},
+		SetAisleGeometry:       &usecases.SetAisleGeometry{Aisles: aisles, Events: publisher, Clock: clock},
+		RegisterFixedStructure: &usecases.RegisterFixedStructure{Sites: sites, Structures: structures, Events: publisher, Clock: clock},
+		ListFixedStructures:    &usecases.ListFixedStructures{Sites: sites, Structures: structures},
 	}
 
 	return s

@@ -230,7 +230,7 @@ func TestLocationSlotDecommissionIsOneWay(t *testing.T) {
 
 func TestRehydrateLocationSlot(t *testing.T) {
 	code := mustCode(t, "WH1-RCV-AMB-D01-01-01-A")
-	s := slot.RehydrateLocationSlot(code, placement.Staging, placement.Storage, slot.FunctionalAttributes{}, mustCapacity(t, 900, 3), shared.UnderMaintenance)
+	s := slot.RehydrateLocationSlot(code, placement.Staging, placement.Storage, slot.FunctionalAttributes{}, mustCapacity(t, 900, 3), shared.UnderMaintenance, shared.Point3D{}, shared.Dimensions{}, nil)
 
 	if s.Code() != code || s.LocationType() != placement.Staging {
 		t.Fatalf("unexpected rehydrated slot %q/%q", s.Code(), s.LocationType())

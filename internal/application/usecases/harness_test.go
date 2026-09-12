@@ -27,6 +27,7 @@ type harness struct {
 	slots         *memory.SlotRepo
 	locationTypes *memory.LocationTypeRepo
 	rules         *memory.PlacementRuleRepo
+	structures    *memory.FixedStructureRepo
 	publisher     *events.BufferedPublisher
 	clock         *memory.FixedClock
 	metrics       *recordingMetrics
@@ -49,6 +50,10 @@ type harness struct {
 	importLayout              *usecases.ImportFacilityLayout
 	getSiteLayout             *usecases.GetSiteLayout
 	getZoneGrid               *usecases.GetZoneGrid
+	setLocationGeometry       *usecases.SetLocationGeometry
+	setAisleGeometry          *usecases.SetAisleGeometry
+	registerFixedStructure    *usecases.RegisterFixedStructure
+	listFixedStructures       *usecases.ListFixedStructures
 }
 
 func newHarness(t *testing.T) *harness {
@@ -62,6 +67,7 @@ func newHarness(t *testing.T) *harness {
 		slots:         memory.NewSlotRepo(),
 		locationTypes: memory.NewLocationTypeRepo(),
 		rules:         memory.NewPlacementRuleRepo(),
+		structures:    memory.NewFixedStructureRepo(),
 		publisher:     events.NewBufferedPublisher(),
 		clock:         memory.NewFixedClock(fixedNow),
 		metrics:       &recordingMetrics{},
@@ -91,8 +97,12 @@ func newHarness(t *testing.T) *harness {
 		LocationTypes: h.locationTypes, Rules: h.rules, Events: h.publisher, Clock: h.clock,
 		Metrics: h.metrics,
 	}
-	h.getSiteLayout = &usecases.GetSiteLayout{Sites: h.sites, Zones: h.zones, Aisles: h.aisles, Slots: h.slots}
+	h.getSiteLayout = &usecases.GetSiteLayout{Sites: h.sites, Zones: h.zones, Aisles: h.aisles, Slots: h.slots, Structures: h.structures}
 	h.getZoneGrid = &usecases.GetZoneGrid{Zones: h.zones, Aisles: h.aisles, Slots: h.slots}
+	h.setLocationGeometry = &usecases.SetLocationGeometry{Slots: h.slots, Events: h.publisher, Clock: h.clock}
+	h.setAisleGeometry = &usecases.SetAisleGeometry{Aisles: h.aisles, Events: h.publisher, Clock: h.clock}
+	h.registerFixedStructure = &usecases.RegisterFixedStructure{Sites: h.sites, Structures: h.structures, Events: h.publisher, Clock: h.clock}
+	h.listFixedStructures = &usecases.ListFixedStructures{Sites: h.sites, Structures: h.structures}
 
 	return h
 }
