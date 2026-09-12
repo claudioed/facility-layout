@@ -9,6 +9,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/domain/placement"
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
+	"github.com/claudioed/facility-layout/internal/domain/structure"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
 )
 
@@ -161,4 +162,24 @@ func (uc *ListLocationsByRole) Execute(ctx context.Context, siteCode string, rol
 	}
 	sortSlotsByCoordinate(out)
 	return out, nil
+}
+
+// ListFixedStructures reads every FixedStructure at a site (ADR-0017): the
+// walls, columns, offices, and conveyors drawn on its floor plan.
+type ListFixedStructures struct {
+	Sites      ports.SiteRepo
+	Structures ports.FixedStructureRepo
+}
+
+// Execute returns every structure at siteCode, ordered by id, or
+// ErrSiteNotFound.
+func (uc *ListFixedStructures) Execute(ctx context.Context, siteCode string) ([]*structure.FixedStructure, error) {
+	s, err := uc.Sites.FindByCode(ctx, siteCode)
+	if err != nil {
+		return nil, err
+	}
+	if s == nil {
+		return nil, ErrSiteNotFound
+	}
+	return uc.Structures.ListBySite(ctx, siteCode)
 }

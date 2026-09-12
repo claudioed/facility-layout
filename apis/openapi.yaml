@@ -362,6 +362,7 @@ paths:
                   siteCode: WH1
                   name: Fulfilment Centre One
                   status: Active
+                fixedStructures: []
                 zones:
                   - zoneId: WH1-STOR-AMB
                     siteCode: WH1
@@ -444,6 +445,68 @@ paths:
           $ref: "#/components/responses/NotFound"
         "422":
           $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /sites/{siteCode}/structures:
+    post:
+      operationId: registerFixedStructure
+      summary: Register a fixed structure
+      description: >
+        Adds a site-scoped physical obstacle — a wall, column, office,
+        conveyor, or other fixed object — to the warehouse map (ADR-0017).
+        A FixedStructure is not a location: nothing can be stowed at it.
+        The site must already exist. Publishes FixedStructureRegistered.
+      tags: [Layout]
+      parameters:
+        - $ref: "#/components/parameters/SiteCode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterFixedStructureRequest"
+      responses:
+        "201":
+          description: The registered structure.
+          headers:
+            Location:
+              schema:
+                type: string
+              description: The URL of the newly registered structure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FixedStructure"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    get:
+      operationId: listFixedStructures
+      summary: List a site's fixed structures
+      description: Returns every FixedStructure registered at a site, ordered by id (ADR-0017).
+      tags: [Layout]
+      parameters:
+        - $ref: "#/components/parameters/SiteCode"
+      responses:
+        "200":
+          description: Every fixed structure at the site, possibly empty.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FixedStructure"
+        "404":
+          $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -677,6 +740,49 @@ paths:
                 status: Active
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+    put:
+      operationId: setAisleGeometry
+      summary: Set an aisle's travel centreline
+      description: >
+        Records an aisle's straight-line travel centreline (ADR-0017), used
+        by the travel graph as this aisle's walkable path. The aisle must
+        already exist and must not be Decommissioned. Publishes
+        AisleGeometryUpdated.
+      tags: [Aisles]
+      parameters:
+        - $ref: "#/components/parameters/ZoneId"
+        - name: aisleCode
+          in: path
+          required: true
+          description: The aisle segment of a LocationCode.
+          schema:
+            type: string
+            pattern: "^[A-Z0-9]+$"
+          example: A07
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetAisleGeometryRequest"
+      responses:
+        "200":
+          description: The aisle, with its new centreline.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Aisle"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -1129,6 +1235,41 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+    put:
+      operationId: setLocationGeometry
+      summary: Set a location slot's physical geometry
+      description: >
+        Records a coded slot's physical position, footprint, and
+        (optionally) an explicit pick-sequence override (ADR-0017). The slot
+        must already exist and must not be Decommissioned. Publishes
+        LocationGeometryUpdated.
+      tags: [Locations]
+      parameters:
+        - $ref: "#/components/parameters/LocationCode"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetLocationGeometryRequest"
+      responses:
+        "200":
+          description: The location slot, with its new geometry.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LocationSlot"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /locations/{locationCode}/classification:
     get:
       operationId: getLocationClassification
@@ -1500,6 +1641,90 @@ components:
           description: Whether this zone is rated for hazardous materials.
           example: false
 
+    Point3D:
+      type: object
+      description: >
+        A position in the site's local coordinate frame, in metres
+        (ADR-0017). Z must be non-negative (height above floor level).
+      required: [xM, yM, zM]
+      properties:
+        xM: { type: number, format: double, example: 12.5 }
+        yM: { type: number, format: double, example: 7.25 }
+        zM: { type: number, format: double, minimum: 0, example: 0 }
+
+    Dimensions:
+      type: object
+      description: A rectangular footprint's extent, in metres (ADR-0017). All three must be strictly positive.
+      required: [widthM, depthM, heightM]
+      properties:
+        widthM: { type: number, format: double, exclusiveMinimum: true, minimum: 0, example: 1.2 }
+        depthM: { type: number, format: double, exclusiveMinimum: true, minimum: 0, example: 0.9 }
+        heightM: { type: number, format: double, exclusiveMinimum: true, minimum: 0, example: 2.4 }
+
+    Segment:
+      type: object
+      description: A straight-line travel centreline between two distinct points (ADR-0017).
+      required: [start, end]
+      properties:
+        start: { $ref: "#/components/schemas/Point3D" }
+        end: { $ref: "#/components/schemas/Point3D" }
+
+    Rect:
+      type: object
+      description: A rectangular footprint — an origin position plus its extent (ADR-0017).
+      required: [origin, size]
+      properties:
+        origin: { $ref: "#/components/schemas/Point3D" }
+        size: { $ref: "#/components/schemas/Dimensions" }
+
+    FixedStructureKind:
+      type: string
+      description: What kind of physical obstacle a FixedStructure represents (ADR-0017).
+      enum: [Wall, Column, Office, Conveyor, Other]
+
+    FixedStructure:
+      type: object
+      description: A site-scoped physical obstacle drawn on the warehouse map — not a location; nothing can be stowed at it (ADR-0017).
+      required: [id, siteCode, kind, origin, size, label]
+      properties:
+        id: { type: string, example: STR-1 }
+        siteCode: { type: string, example: WH1 }
+        kind: { $ref: "#/components/schemas/FixedStructureKind" }
+        origin: { $ref: "#/components/schemas/Point3D" }
+        size: { $ref: "#/components/schemas/Dimensions" }
+        label: { type: string, example: North wall }
+
+    RegisterFixedStructureRequest:
+      type: object
+      required: [kind, footprint, label]
+      properties:
+        id:
+          type: string
+          description: Caller-supplied opaque id. A UUID is minted when omitted.
+          example: STR-1
+        kind: { $ref: "#/components/schemas/FixedStructureKind" }
+        footprint: { $ref: "#/components/schemas/Rect" }
+        label: { type: string, example: North wall }
+
+    SetLocationGeometryRequest:
+      type: object
+      required: [position, dimensions]
+      properties:
+        position: { $ref: "#/components/schemas/Point3D" }
+        dimensions: { $ref: "#/components/schemas/Dimensions" }
+        pickSequence:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Optional explicit pick-path override for this slot.
+          example: 42
+
+    SetAisleGeometryRequest:
+      type: object
+      required: [centreline]
+      properties:
+        centreline: { $ref: "#/components/schemas/Segment" }
+
     Aisle:
       type: object
       description: A physical corridor scoped to a Zone.
@@ -1527,6 +1752,10 @@ components:
           $ref: "#/components/schemas/Direction"
         status:
           $ref: "#/components/schemas/Status"
+        centreline:
+          allOf:
+            - $ref: "#/components/schemas/Segment"
+          description: The aisle's travel centreline, when set (ADR-0017). Absent until SetAisleGeometry is called.
 
     RegisterAisleRequest:
       type: object
@@ -1708,6 +1937,20 @@ components:
           $ref: "#/components/schemas/Capacity"
         status:
           $ref: "#/components/schemas/Status"
+        position:
+          allOf:
+            - $ref: "#/components/schemas/Point3D"
+          description: The slot's physical position, when set (ADR-0017). Absent until SetLocationGeometry is called.
+        dimensions:
+          allOf:
+            - $ref: "#/components/schemas/Dimensions"
+          description: The slot's physical footprint, when set (ADR-0017). Absent until SetLocationGeometry is called.
+        pickSequence:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Explicit pick-path override, when set (ADR-0017).
+          example: 42
 
     LocationClassification:
       type: object
@@ -1985,8 +2228,10 @@ components:
       type: object
       description: >
         The full nested, drawable structure of one Site: zones → aisles →
-        slots, pre-grouped and pre-ordered for direct rendering.
-      required: [site, zones, totals]
+        slots, pre-grouped and pre-ordered for direct rendering. Also
+        carries the site's fixed structures (ADR-0017): walls, columns,
+        offices, and other physical obstacles that are not locations.
+      required: [site, zones, fixedStructures, totals]
       properties:
         site:
           $ref: "#/components/schemas/Site"
@@ -1995,6 +2240,11 @@ components:
           description: The site's zones, ordered by zone id.
           items:
             $ref: "#/components/schemas/ZoneLayout"
+        fixedStructures:
+          type: array
+          description: The site's fixed structures, ordered by id (ADR-0017).
+          items:
+            $ref: "#/components/schemas/FixedStructure"
         totals:
           $ref: "#/components/schemas/SiteLayoutTotals"
 

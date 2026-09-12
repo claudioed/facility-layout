@@ -10,12 +10,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/google/uuid"
 	"github.com/riandyrn/otelchi"
 	otelchimetric "github.com/riandyrn/otelchi/metric"
 
 	"github.com/claudioed/facility-layout/internal/application/usecases"
 	"github.com/claudioed/facility-layout/internal/domain/placement"
 	"github.com/claudioed/facility-layout/internal/domain/shared"
+	"github.com/claudioed/facility-layout/internal/domain/structure"
 )
 
 // DefaultServiceName is the service name reported on this adapter's spans
@@ -64,6 +66,10 @@ type Server struct {
 	ImportFacilityLayout      *usecases.ImportFacilityLayout
 	GetSiteLayout             *usecases.GetSiteLayout
 	GetZoneGrid               *usecases.GetZoneGrid
+	SetLocationGeometry       *usecases.SetLocationGeometry
+	SetAisleGeometry          *usecases.SetAisleGeometry
+	RegisterFixedStructure    *usecases.RegisterFixedStructure
+	ListFixedStructures       *usecases.ListFixedStructures
 }
 
 // NewRouter builds the chi router for every endpoint in CLAUDE.md's REST
@@ -118,6 +124,8 @@ func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handle
 		r.Get("/{siteCode}/locations", s.handleListLocationsByRole)
 		r.Post("/{siteCode}/zones", s.handleRegisterZone)
 		r.Get("/{siteCode}/zones", s.handleListZones)
+		r.Post("/{siteCode}/structures", s.handleRegisterFixedStructure)
+		r.Get("/{siteCode}/structures", s.handleListFixedStructures)
 	})
 
 	r.Route("/zones", func(r chi.Router) {
@@ -126,6 +134,7 @@ func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handle
 		r.Post("/{zoneId}/aisles", s.handleRegisterAisle)
 		r.Get("/{zoneId}/aisles", s.handleListAisles)
 		r.Get("/{zoneId}/aisles/{aisleCode}", s.handleGetAisle)
+		r.Put("/{zoneId}/aisles/{aisleCode}/geometry", s.handleSetAisleGeometry)
 	})
 
 	r.Route("/location-types", func(r chi.Router) {
@@ -146,6 +155,7 @@ func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handle
 		r.Get("/{locationCode}", s.handleGetLocationSlot)
 		r.Get("/{locationCode}/classification", s.handleGetLocationClassification)
 		r.Post("/{locationCode}/decommission", s.handleDecommissionLocationSlot)
+		r.Put("/{locationCode}/geometry", s.handleSetLocationGeometry)
 	})
 
 	return r
@@ -550,6 +560,102 @@ func (s *Server) handleGetZoneGrid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toZoneGridResponse(grid))
+}
+
+// --------------------------------------------------------- geometry (ADR-0017) --
+
+func (s *Server) handleSetLocationGeometry(w http.ResponseWriter, r *http.Request) {
+	code, err := shared.ParseLocationCode(chi.URLParam(r, "locationCode"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var req setLocationGeometryRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	position, err := fromPoint3DRequest(req.Position)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	dimensions, err := fromDimensionsRequest(req.Dimensions)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	updated, err := s.SetLocationGeometry.Execute(r.Context(), code, position, dimensions, req.PickSequence)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toLocationSlotResponse(updated))
+}
+
+func (s *Server) handleSetAisleGeometry(w http.ResponseWriter, r *http.Request) {
+	aisleID := chi.URLParam(r, "zoneId") + "-" + chi.URLParam(r, "aisleCode")
+	var req setAisleGeometryRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	centreline, err := fromSegmentRequest(req.Centreline)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	updated, err := s.SetAisleGeometry.Execute(r.Context(), aisleID, centreline)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toAisleResponse(updated))
+}
+
+// handleRegisterFixedStructure registers a site-scoped physical obstacle
+// (wall, column, office, conveyor, or other). id is caller-supplied, the
+// same pattern PlacementRule ids follow: when the caller omits it, a UUID
+// is minted here.
+func (s *Server) handleRegisterFixedStructure(w http.ResponseWriter, r *http.Request) {
+	siteCode := chi.URLParam(r, "siteCode")
+	var req registerFixedStructureRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	kind, err := structure.ParseKind(req.Kind)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	footprint, err := fromRectRequest(req.Footprint)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	id := req.ID
+	if id == "" {
+		id = uuid.NewString()
+	}
+
+	registered, err := s.RegisterFixedStructure.Execute(r.Context(), id, siteCode, kind, footprint, req.Label)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	w.Header().Set("Location", "/sites/"+siteCode+"/structures/"+registered.ID())
+	writeJSON(w, http.StatusCreated, toFixedStructureResponse(registered))
+}
+
+func (s *Server) handleListFixedStructures(w http.ResponseWriter, r *http.Request) {
+	structures, err := s.ListFixedStructures.Execute(r.Context(), chi.URLParam(r, "siteCode"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	out := make([]fixedStructureResponse, 0, len(structures))
+	for _, f := range structures {
+		out = append(out, toFixedStructureResponse(f))
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // --------------------------------------------------------------- writing ---

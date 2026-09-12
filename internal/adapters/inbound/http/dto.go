@@ -72,6 +72,61 @@ type importRowRequest struct {
 	DockFlow         string           `json:"dockFlow,omitempty"`
 	Activities       []string         `json:"activities,omitempty"`
 	CapacityOverride *capacityRequest `json:"capacityOverride,omitempty"`
+	Geometry         *geometryRequest `json:"geometry,omitempty"`
+	PickSequence     *int             `json:"pickSequence,omitempty"`
+}
+
+// point3DRequest is a position in the site's local coordinate frame, in
+// metres (ADR-0017).
+type point3DRequest struct {
+	XM float64 `json:"xM"`
+	YM float64 `json:"yM"`
+	ZM float64 `json:"zM"`
+}
+
+// dimensionsRequest is a rectangular footprint's extent, in metres
+// (ADR-0017).
+type dimensionsRequest struct {
+	WidthM  float64 `json:"widthM"`
+	DepthM  float64 `json:"depthM"`
+	HeightM float64 `json:"heightM"`
+}
+
+// geometryRequest is a slot's position + footprint, submitted together
+// (ADR-0017's all-or-nothing rule).
+type geometryRequest struct {
+	Position   point3DRequest    `json:"position"`
+	Dimensions dimensionsRequest `json:"dimensions"`
+}
+
+type setLocationGeometryRequest struct {
+	Position     point3DRequest    `json:"position"`
+	Dimensions   dimensionsRequest `json:"dimensions"`
+	PickSequence *int              `json:"pickSequence,omitempty"`
+}
+
+type setAisleGeometryRequest struct {
+	Centreline segmentRequest `json:"centreline"`
+}
+
+// segmentRequest is an aisle's straight-line travel centreline (ADR-0017).
+type segmentRequest struct {
+	Start point3DRequest `json:"start"`
+	End   point3DRequest `json:"end"`
+}
+
+type registerFixedStructureRequest struct {
+	ID        string      `json:"id,omitempty"`
+	Kind      string      `json:"kind"`
+	Footprint rectRequest `json:"footprint"`
+	Label     string      `json:"label"`
+}
+
+// rectRequest is a FixedStructure's footprint: an origin position plus its
+// extent (ADR-0017).
+type rectRequest struct {
+	Origin point3DRequest    `json:"origin"`
+	Size   dimensionsRequest `json:"size"`
 }
 
 // ------------------------------------------------------------ responses ----
@@ -93,12 +148,13 @@ type zoneResponse struct {
 }
 
 type aisleResponse struct {
-	AisleID      string `json:"aisleId"`
-	ZoneID       string `json:"zoneId"`
-	AisleCode    string `json:"aisleCode"`
-	SequenceHint int    `json:"sequenceHint"`
-	Direction    string `json:"direction"`
-	Status       string `json:"status"`
+	AisleID      string           `json:"aisleId"`
+	ZoneID       string           `json:"zoneId"`
+	AisleCode    string           `json:"aisleCode"`
+	SequenceHint int              `json:"sequenceHint"`
+	Direction    string           `json:"direction"`
+	Status       string           `json:"status"`
+	Centreline   *segmentResponse `json:"centreline,omitempty"`
 }
 
 type capacityResponse struct {
@@ -149,6 +205,39 @@ type locationSlotResponse struct {
 	Activities   []string            `json:"activities,omitempty"`
 	Capacity     capacityResponse    `json:"capacity"`
 	Status       string              `json:"status"`
+	Position     *point3DResponse    `json:"position,omitempty"`
+	Dimensions   *dimensionsResponse `json:"dimensions,omitempty"`
+	PickSequence *int                `json:"pickSequence,omitempty"`
+}
+
+// point3DResponse mirrors point3DRequest for a slot/structure position.
+type point3DResponse struct {
+	XM float64 `json:"xM"`
+	YM float64 `json:"yM"`
+	ZM float64 `json:"zM"`
+}
+
+// dimensionsResponse mirrors dimensionsRequest for a slot/structure footprint.
+type dimensionsResponse struct {
+	WidthM  float64 `json:"widthM"`
+	DepthM  float64 `json:"depthM"`
+	HeightM float64 `json:"heightM"`
+}
+
+// segmentResponse is an aisle's travel centreline (ADR-0017).
+type segmentResponse struct {
+	Start point3DResponse `json:"start"`
+	End   point3DResponse `json:"end"`
+}
+
+// fixedStructureResponse is one site-scoped physical obstacle (ADR-0017).
+type fixedStructureResponse struct {
+	ID       string             `json:"id"`
+	SiteCode string             `json:"siteCode"`
+	Kind     string             `json:"kind"`
+	Origin   point3DResponse    `json:"origin"`
+	Size     dimensionsResponse `json:"size"`
+	Label    string             `json:"label"`
 }
 
 // locationClassificationResponse is the resolved subset of a slot's parent
@@ -182,9 +271,10 @@ type importReportResponse struct {
 // zones -> aisles -> slots, pre-grouped and pre-ordered so a frontend can
 // paint a floor plan without any client-side joining or sorting.
 type siteLayoutResponse struct {
-	Site   siteResponse             `json:"site"`
-	Zones  []zoneLayoutResponse     `json:"zones"`
-	Totals siteLayoutTotalsResponse `json:"totals"`
+	Site            siteResponse             `json:"site"`
+	Zones           []zoneLayoutResponse     `json:"zones"`
+	FixedStructures []fixedStructureResponse `json:"fixedStructures"`
+	Totals          siteLayoutTotalsResponse `json:"totals"`
 }
 
 type siteLayoutTotalsResponse struct {

@@ -11,6 +11,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 	"github.com/claudioed/facility-layout/internal/domain/site"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
+	"github.com/claudioed/facility-layout/internal/domain/structure"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
 )
 
@@ -281,6 +282,50 @@ func (r *PlacementRuleRepo) List(_ context.Context) ([]placement.PlacementRule, 
 	out := make([]placement.PlacementRule, 0, len(r.rules))
 	for _, rule := range r.rules {
 		out = append(out, rule)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID() < out[j].ID() })
+	return out, nil
+}
+
+// FixedStructureRepo is an in-memory implementation of ports.FixedStructureRepo.
+type FixedStructureRepo struct {
+	mu         sync.RWMutex
+	structures map[string]*structure.FixedStructure
+}
+
+// NewFixedStructureRepo builds an empty FixedStructureRepo.
+func NewFixedStructureRepo() *FixedStructureRepo {
+	return &FixedStructureRepo{structures: make(map[string]*structure.FixedStructure)}
+}
+
+// Save stores the structure under its id.
+func (r *FixedStructureRepo) Save(_ context.Context, f *structure.FixedStructure) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.structures[f.ID()] = f
+	return nil
+}
+
+// FindByID returns the structure, or (nil, nil) when it does not exist.
+func (r *FixedStructureRepo) FindByID(_ context.Context, id string) (*structure.FixedStructure, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	f, ok := r.structures[id]
+	if !ok {
+		return nil, nil
+	}
+	return f, nil
+}
+
+// ListBySite returns every structure in a site, ordered by id.
+func (r *FixedStructureRepo) ListBySite(_ context.Context, siteCode string) ([]*structure.FixedStructure, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]*structure.FixedStructure, 0)
+	for _, f := range r.structures {
+		if f.SiteCode() == siteCode {
+			out = append(out, f)
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID() < out[j].ID() })
 	return out, nil

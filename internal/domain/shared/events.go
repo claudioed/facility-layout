@@ -206,3 +206,94 @@ func NewFacilityLayoutImported(occurredAt time.Time, submitted, imported, reject
 		RowsRejected:  rejected,
 	}
 }
+
+// LocationGeometryUpdated: a coded slot's physical position/footprint was
+// set or changed (ADR-0017).
+type LocationGeometryUpdated struct {
+	base
+	LocationCode string  `json:"locationCode"`
+	XM           float64 `json:"xM"`
+	YM           float64 `json:"yM"`
+	ZM           float64 `json:"zM"`
+	WidthM       float64 `json:"widthM"`
+	DepthM       float64 `json:"depthM"`
+	HeightM      float64 `json:"heightM"`
+	PickSequence *int    `json:"pickSequence,omitempty"`
+}
+
+// NewLocationGeometryUpdated builds a LocationGeometryUpdated event.
+func NewLocationGeometryUpdated(occurredAt time.Time, code LocationCode, position Point3D, dimensions Dimensions, pickSequence *int) LocationGeometryUpdated {
+	return LocationGeometryUpdated{
+		base:         newBase("locationslot", "LocationGeometryUpdated", occurredAt),
+		LocationCode: code.String(),
+		XM:           position.XM(),
+		YM:           position.YM(),
+		ZM:           position.ZM(),
+		WidthM:       dimensions.WidthM(),
+		DepthM:       dimensions.DepthM(),
+		HeightM:      dimensions.HeightM(),
+		PickSequence: pickSequence,
+	}
+}
+
+// AisleGeometryUpdated: an aisle's travel centreline was set or changed
+// (ADR-0017).
+type AisleGeometryUpdated struct {
+	base
+	AisleID string  `json:"aisleId"`
+	StartXM float64 `json:"startXM"`
+	StartYM float64 `json:"startYM"`
+	StartZM float64 `json:"startZM"`
+	EndXM   float64 `json:"endXM"`
+	EndYM   float64 `json:"endYM"`
+	EndZM   float64 `json:"endZM"`
+	LengthM float64 `json:"lengthM"`
+}
+
+// NewAisleGeometryUpdated builds an AisleGeometryUpdated event.
+func NewAisleGeometryUpdated(occurredAt time.Time, aisleID string, centreline Segment) AisleGeometryUpdated {
+	return AisleGeometryUpdated{
+		base:    newBase("aisle", "AisleGeometryUpdated", occurredAt),
+		AisleID: aisleID,
+		StartXM: centreline.Start().XM(),
+		StartYM: centreline.Start().YM(),
+		StartZM: centreline.Start().ZM(),
+		EndXM:   centreline.End().XM(),
+		EndYM:   centreline.End().YM(),
+		EndZM:   centreline.End().ZM(),
+		LengthM: centreline.LengthM(),
+	}
+}
+
+// FixedStructureRegistered: a site-scoped physical obstacle (wall, column,
+// office, conveyor, or other) was added to the warehouse map (ADR-0017).
+type FixedStructureRegistered struct {
+	base
+	StructureID string  `json:"structureId"`
+	SiteCode    string  `json:"siteCode"`
+	Kind        string  `json:"kind"`
+	XM          float64 `json:"xM"`
+	YM          float64 `json:"yM"`
+	ZM          float64 `json:"zM"`
+	WidthM      float64 `json:"widthM"`
+	DepthM      float64 `json:"depthM"`
+	HeightM     float64 `json:"heightM"`
+	Label       string  `json:"label"`
+}
+
+// NewFixedStructureRegistered builds a FixedStructureRegistered event.
+func NewFixedStructureRegistered(occurredAt time.Time, structureID, siteCode, kind string, footprint Rect, label string) FixedStructureRegistered {
+	return FixedStructureRegistered{
+		base:        newBase("structure", "FixedStructureRegistered", occurredAt),
+		StructureID: structureID,
+		SiteCode:    siteCode,
+		Kind:        kind,
+		XM:          footprint.Origin().XM(),
+		YM:          footprint.Origin().YM(),
+		ZM:          footprint.Origin().ZM(),
+		WidthM:      footprint.Size().WidthM(),
+		DepthM:      footprint.Size().DepthM(),
+		HeightM:     footprint.Size().HeightM(),
+		Label:       label,
+	}
+}

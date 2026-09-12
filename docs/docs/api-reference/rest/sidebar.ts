@@ -88,6 +88,12 @@ const sidebar: SidebarsConfig = {
           label: "Get one aisle",
           className: "api-method get",
         },
+        {
+          type: "doc",
+          id: "api-reference/rest/set-aisle-geometry",
+          label: "Set an aisle's travel centreline",
+          className: "api-method put",
+        },
       ],
     },
     {
@@ -174,6 +180,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "api-reference/rest/set-location-geometry",
+          label: "Set a location slot's physical geometry",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
           id: "api-reference/rest/decommission-location-slot",
           label: "Permanently retire a location slot",
           className: "api-method post",
@@ -198,6 +210,18 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "api-reference/rest/list-locations-by-role",
           label: "List a site's locations by role",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/register-fixed-structure",
+          label: "Register a fixed structure",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/list-fixed-structures",
+          label: "List a site's fixed structures",
           className: "api-method get",
         },
         {

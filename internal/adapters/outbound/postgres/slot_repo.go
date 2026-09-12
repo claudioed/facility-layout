@@ -27,20 +27,23 @@ func NewSlotRepo(pool *pgxpool.Pool) *SlotRepo {
 
 const slotColumns = `code, site_segment, area_segment, zone_segment, aisle_segment,
 	bay_segment, level_segment, position_segment, location_type, role, dock_flow, activities,
-	max_weight_kg, max_volume_m3, status`
+	max_weight_kg, max_volume_m3, status, x_m, y_m, z_m, width_m, depth_m, height_m, pick_sequence`
 
 // Save upserts the slot.
 func (r *SlotRepo) Save(ctx context.Context, s *slot.LocationSlot) error {
 	code := s.Code()
 	functional := s.Functional()
+	position := s.Position()
+	dimensions := s.Dimensions()
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO location_slots (
 			code, site_segment, area_segment, zone_segment, aisle_segment,
 			bay_segment, level_segment, position_segment,
 			zone_id, aisle_id, location_type, role, dock_flow, activities,
-			max_weight_kg, max_volume_m3, status
+			max_weight_kg, max_volume_m3, status,
+			x_m, y_m, z_m, width_m, depth_m, height_m, pick_sequence
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
 		ON CONFLICT (code) DO UPDATE SET
 			location_type = EXCLUDED.location_type,
 			role = EXCLUDED.role,
@@ -48,13 +51,23 @@ func (r *SlotRepo) Save(ctx context.Context, s *slot.LocationSlot) error {
 			activities = EXCLUDED.activities,
 			max_weight_kg = EXCLUDED.max_weight_kg,
 			max_volume_m3 = EXCLUDED.max_volume_m3,
-			status = EXCLUDED.status
+			status = EXCLUDED.status,
+			x_m = EXCLUDED.x_m,
+			y_m = EXCLUDED.y_m,
+			z_m = EXCLUDED.z_m,
+			width_m = EXCLUDED.width_m,
+			depth_m = EXCLUDED.depth_m,
+			height_m = EXCLUDED.height_m,
+			pick_sequence = EXCLUDED.pick_sequence
 	`,
 		code.String(), code.Site(), code.Area(), code.Zone(), code.Aisle(),
 		code.Bay(), code.Level(), code.Position(),
 		code.ZoneID(), code.AisleID(), s.LocationType(), string(s.Role()),
 		nullableDockFlow(functional), activityColumn(functional),
-		nullableFloat(s.Capacity()), nullableVolume(s.Capacity()), string(s.Status()))
+		nullableFloat(s.Capacity()), nullableVolume(s.Capacity()), string(s.Status()),
+		nullablePositionX(position), nullablePositionY(position), nullablePositionZ(position),
+		nullableDimensionWidth(dimensions), nullableDimensionDepth(dimensions), nullableDimensionHeight(dimensions),
+		s.PickSequence())
 	return err
 }
 
@@ -112,9 +125,12 @@ func scanSlot(row scanner) (*slot.LocationSlot, error) {
 	var dockFlow *string
 	var activities []string
 	var maxWeightKg, maxVolumeM3 *float64
+	var xM, yM, zM, widthM, depthM, heightM *float64
+	var pickSequence *int
 
 	if err := row.Scan(&raw, &site, &area, &zoneSeg, &aisleSeg, &bay, &level, &position,
-		&locationType, &role, &dockFlow, &activities, &maxWeightKg, &maxVolumeM3, &status); err != nil {
+		&locationType, &role, &dockFlow, &activities, &maxWeightKg, &maxVolumeM3, &status,
+		&xM, &yM, &zM, &widthM, &depthM, &heightM, &pickSequence); err != nil {
 		return nil, err
 	}
 
@@ -138,7 +154,11 @@ func scanSlot(row scanner) (*slot.LocationSlot, error) {
 	if err != nil {
 		return nil, err
 	}
-	return slot.RehydrateLocationSlot(code, locationType, locationRole, functional, capacity, st), nil
+	position3D, dimensions, err := geometryFromColumns(xM, yM, zM, widthM, depthM, heightM)
+	if err != nil {
+		return nil, err
+	}
+	return slot.RehydrateLocationSlot(code, locationType, locationRole, functional, capacity, st, position3D, dimensions, pickSequence), nil
 }
 
 // nullableDockFlow returns functional's DockFlow as a pointer, or nil when
@@ -178,4 +198,76 @@ func functionalFromColumns(role placement.LocationRole, dockFlow *string, activi
 		parsed = append(parsed, slot.Activity(raw))
 	}
 	return slot.NewFunctionalAttributes(role, flow, parsed)
+}
+
+// nullablePositionX/Y/Z return position's respective coordinate as a
+// pointer, or nil when no geometry has ever been set (ADR-0017) — the
+// all-or-nothing shape the 0003_geometry check constraint enforces.
+func nullablePositionX(position shared.Point3D) *float64 {
+	if position.IsZero() {
+		return nil
+	}
+	v := position.XM()
+	return &v
+}
+
+func nullablePositionY(position shared.Point3D) *float64 {
+	if position.IsZero() {
+		return nil
+	}
+	v := position.YM()
+	return &v
+}
+
+func nullablePositionZ(position shared.Point3D) *float64 {
+	if position.IsZero() {
+		return nil
+	}
+	v := position.ZM()
+	return &v
+}
+
+// nullableDimensionWidth/Depth/Height return dimensions's respective extent
+// as a pointer, or nil when no geometry has ever been set (ADR-0017).
+func nullableDimensionWidth(dimensions shared.Dimensions) *float64 {
+	if dimensions.IsZero() {
+		return nil
+	}
+	v := dimensions.WidthM()
+	return &v
+}
+
+func nullableDimensionDepth(dimensions shared.Dimensions) *float64 {
+	if dimensions.IsZero() {
+		return nil
+	}
+	v := dimensions.DepthM()
+	return &v
+}
+
+func nullableDimensionHeight(dimensions shared.Dimensions) *float64 {
+	if dimensions.IsZero() {
+		return nil
+	}
+	v := dimensions.HeightM()
+	return &v
+}
+
+// geometryFromColumns rebuilds a slot's Point3D/Dimensions from the
+// possibly-all-NULL stored columns. The 0003_geometry check constraint
+// guarantees the six columns are either all NULL or all set, so seeing xM
+// non-nil is sufficient to know the rest are too.
+func geometryFromColumns(xM, yM, zM, widthM, depthM, heightM *float64) (shared.Point3D, shared.Dimensions, error) {
+	if xM == nil {
+		return shared.Point3D{}, shared.Dimensions{}, nil
+	}
+	position, err := shared.NewPoint3D(*xM, *yM, *zM)
+	if err != nil {
+		return shared.Point3D{}, shared.Dimensions{}, err
+	}
+	dimensions, err := shared.NewDimensions(*widthM, *depthM, *heightM)
+	if err != nil {
+		return shared.Point3D{}, shared.Dimensions{}, err
+	}
+	return position, dimensions, nil
 }

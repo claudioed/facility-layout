@@ -19,6 +19,11 @@ import (
 // DockFlow and Activities are optional (ADR-0016): they matter only when
 // the row's LocationType has role Dock or WorkCenter respectively, and are
 // ignored (must be empty) for every other role.
+//
+// XM/YM/ZM/WidthM/DepthM/HeightM/PickSequence are optional (ADR-0017): a
+// row that supplies none of them registers a slot with no geometry, exactly
+// as before this ADR. Supplying X/Y/Z requires supplying all three
+// dimensions too (all-or-nothing, same rule the domain and schema enforce).
 type ImportRow struct {
 	SiteCode         string
 	SiteName         string
@@ -37,6 +42,13 @@ type ImportRow struct {
 	Activities       []string
 	MaxWeightKg      float64
 	MaxVolumeM3      float64
+	XM               *float64
+	YM               *float64
+	ZM               *float64
+	WidthM           *float64
+	DepthM           *float64
+	HeightM          *float64
+	PickSequence     *int
 }
 
 // ImportRowResult is the per-row outcome of a bulk import.
@@ -146,7 +158,33 @@ func (uc *ImportFacilityLayout) importRow(ctx context.Context, row ImportRow) (s
 	if _, err := register.Execute(ctx, code, row.LocationType, capacityOverride, row.DockFlow, row.Activities); err != nil {
 		return code.String(), err
 	}
+
+	if row.XM != nil {
+		position, err := shared.NewPoint3D(*row.XM, deref(row.YM), deref(row.ZM))
+		if err != nil {
+			return code.String(), err
+		}
+		dimensions, err := shared.NewDimensions(deref(row.WidthM), deref(row.DepthM), deref(row.HeightM))
+		if err != nil {
+			return code.String(), err
+		}
+		geometry := &SetLocationGeometry{Slots: uc.Slots, Events: uc.Events, Clock: uc.Clock}
+		if _, err := geometry.Execute(ctx, code, position, dimensions, row.PickSequence); err != nil {
+			return code.String(), err
+		}
+	}
 	return code.String(), nil
+}
+
+// deref returns *p, or the zero value when p is nil — used for the
+// geometry columns that must all be present together (ADR-0017's
+// all-or-nothing rule), so a nil here would already be a caller error the
+// NewPoint3D/NewDimensions validation below catches.
+func deref(p *float64) float64 {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 func (uc *ImportFacilityLayout) ensureSite(ctx context.Context, row ImportRow) error {
