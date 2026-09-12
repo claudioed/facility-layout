@@ -15,6 +15,10 @@ import (
 // the slot at it. Structural parents named by a row are created on first
 // sight; a row that names an existing parent reuses it (it never mutates
 // one, so a row cannot silently redefine a zone's temperature class).
+//
+// DockFlow and Activities are optional (ADR-0016): they matter only when
+// the row's LocationType has role Dock or WorkCenter respectively, and are
+// ignored (must be empty) for every other role.
 type ImportRow struct {
 	SiteCode         string
 	SiteName         string
@@ -29,6 +33,8 @@ type ImportRow struct {
 	Level            string
 	Position         string
 	LocationType     string
+	DockFlow         string
+	Activities       []string
 	MaxWeightKg      float64
 	MaxVolumeM3      float64
 }
@@ -137,7 +143,7 @@ func (uc *ImportFacilityLayout) importRow(ctx context.Context, row ImportRow) (s
 		Clock:         uc.Clock,
 		Metrics:       uc.Metrics,
 	}
-	if _, err := register.Execute(ctx, code, row.LocationType, capacityOverride); err != nil {
+	if _, err := register.Execute(ctx, code, row.LocationType, capacityOverride, row.DockFlow, row.Activities); err != nil {
 		return code.String(), err
 	}
 	return code.String(), nil

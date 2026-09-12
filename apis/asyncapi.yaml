@@ -324,8 +324,19 @@ components:
                       locationType:
                         type: string
                         description: e.g. `PalletRack`, `ShelfBin`.
+                      role:
+                        type: string
+                        description: >
+                          The LocationRole (ADR-0016): Storage, Dock, Yard,
+                          WorkCenter, Drop, Staging, QC, Consolidation, or
+                          Shipping. Added additively; absent on events
+                          emitted before this field existed, which consumers
+                          should treat as `Storage`.
                       maxWeightKg:
                         type: number
+                        description: >
+                          0/absent for a role that does not require
+                          capacity (Dock, Yard, WorkCenter, QC, Shipping).
                       maxVolumeM3:
                         type: number
 
@@ -397,8 +408,31 @@ components:
                         type: string
                       locationType:
                         type: string
+                      role:
+                        type: string
+                        description: >
+                          The LocationRole (ADR-0016). Added additively;
+                          absent on events emitted before this field
+                          existed, which consumers should treat as
+                          `Storage`.
+                      dockFlow:
+                        type: string
+                        description: >
+                          Inbound, Outbound, or Both. Present only when
+                          role is Dock (ADR-0016).
+                      activities:
+                        type: array
+                        items:
+                          type: string
+                        description: >
+                          Pack, Sort, QC, VAS, Deconsolidate, Receive
+                          and/or Kit. Present only when role is WorkCenter
+                          (ADR-0016).
                       maxWeightKg:
                         type: number
+                        description: >
+                          0/absent for a role that does not require
+                          capacity (Dock, Yard, WorkCenter, QC, Shipping).
                       maxVolumeM3:
                         type: number
 

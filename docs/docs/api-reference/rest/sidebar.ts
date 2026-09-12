@@ -196,6 +196,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "api-reference/rest/list-locations-by-role",
+          label: "List a site's locations by role",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "api-reference/rest/get-zone-grid",
           label: "Get a zone as a 2D renderable grid",
           className: "api-method get",

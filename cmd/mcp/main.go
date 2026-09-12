@@ -82,9 +82,10 @@ func run() error {
 	// additionally wired to call the facility-reports REST service (ADR-0010);
 	// when it is unset the tool is simply not registered.
 	deps := inboundmcp.Deps{
-		GetSiteLayout: &usecases.GetSiteLayout{Sites: adapters.sites, Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots},
-		GetZoneGrid:   &usecases.GetZoneGrid{Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots},
-		ListSites:     &usecases.ListSites{Sites: adapters.sites},
+		GetSiteLayout:       &usecases.GetSiteLayout{Sites: adapters.sites, Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots},
+		GetZoneGrid:         &usecases.GetZoneGrid{Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots},
+		ListSites:           &usecases.ListSites{Sites: adapters.sites},
+		ListLocationsByRole: &usecases.ListLocationsByRole{Sites: adapters.sites, Zones: adapters.zones, Slots: adapters.slots},
 	}
 	if reportsURL := os.Getenv("REPORTS_BASE_URL"); reportsURL != "" {
 		deps.Reports = inboundmcp.NewReportsRESTClient(reportsURL, nil)

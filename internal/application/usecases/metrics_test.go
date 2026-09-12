@@ -60,7 +60,7 @@ func TestRegisterLocationSlotRecordsOutcome(t *testing.T) {
 			if tt.want == usecases.OutcomeRejectedByPlacementRule {
 				locationType = placement.ToteWall
 			}
-			_, _ = h.registerSlot.Execute(h.ctx(), code, locationType, shared.Capacity{})
+			_, _ = h.registerSlot.Execute(h.ctx(), code, locationType, shared.Capacity{}, "", nil)
 
 			if len(h.metrics.outcomes) != 1 {
 				t.Fatalf("expected exactly one recorded outcome, got %v", h.metrics.outcomes)
@@ -105,7 +105,7 @@ func TestRegisterLocationSlotWithoutMetricsRecorder(t *testing.T) {
 	h.seedAmbientAisle()
 	h.registerSlot.Metrics = nil
 
-	s, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, shared.Capacity{})
+	s, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, shared.Capacity{}, "", nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

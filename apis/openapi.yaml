@@ -390,6 +390,7 @@ paths:
                               level: "02"
                               position: B
                             locationType: PalletRack
+                            role: Storage
                             capacity:
                               maxWeightKg: 1200
                               maxVolumeM3: 2.4
@@ -408,6 +409,41 @@ paths:
                 </svg>
         "404":
           $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /sites/{siteCode}/locations:
+    get:
+      operationId: listLocationsByRole
+      summary: List a site's locations by role
+      description: >
+        Answers "where are this site's dock doors" (or any other
+        LocationRole) without walking the full nested site layout
+        (ADR-0016). Results are ordered zone → aisle → bay → level →
+        position, like getSiteLayout's slots.
+      tags: [Layout]
+      parameters:
+        - $ref: "#/components/parameters/SiteCode"
+        - name: role
+          in: query
+          required: true
+          description: The LocationRole to filter on.
+          schema:
+            $ref: "#/components/schemas/LocationRole"
+          example: Dock
+      responses:
+        "200":
+          description: Every LocationSlot at the site with the requested role, possibly empty.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LocationSlot"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
         "500":
           $ref: "#/components/responses/InternalError"
 
@@ -682,6 +718,7 @@ paths:
                 $ref: "#/components/schemas/LocationType"
               example:
                 name: PalletRack
+                role: Storage
                 defaultCapacity:
                   maxWeightKg: 1200
                   maxVolumeM3: 2.4
@@ -712,10 +749,12 @@ paths:
                   $ref: "#/components/schemas/LocationType"
               example:
                 - name: Amnesty
+                  role: Storage
                   defaultCapacity:
                     maxWeightKg: 30
                     maxVolumeM3: 0.2
                 - name: PalletRack
+                  role: Storage
                   defaultCapacity:
                     maxWeightKg: 1200
                     maxVolumeM3: 2.4
@@ -747,6 +786,7 @@ paths:
                 $ref: "#/components/schemas/LocationType"
               example:
                 name: PalletRack
+                role: Storage
                 defaultCapacity:
                   maxWeightKg: 1200
                   maxVolumeM3: 2.4
@@ -943,6 +983,7 @@ paths:
                   level: "02"
                   position: B
                 locationType: PalletRack
+                role: Storage
                 capacity:
                   maxWeightKg: 1200
                   maxVolumeM3: 2.4
@@ -1076,6 +1117,7 @@ paths:
                   level: "02"
                   position: B
                 locationType: PalletRack
+                role: Storage
                 capacity:
                   maxWeightKg: 1200
                   maxVolumeM3: 2.4
@@ -1504,10 +1546,20 @@ components:
         direction:
           $ref: "#/components/schemas/Direction"
 
+    LocationRole:
+      type: string
+      description: >
+        What a location on the map is FOR (ADR-0016). Storage is the
+        default and only role that existed before this ADR; the rest cover
+        non-storage functional locations that previously had no place on
+        the map at all.
+      enum: [Storage, Dock, Yard, WorkCenter, Drop, Staging, QC, Consolidation, Shipping]
+      example: Storage
+
     LocationType:
       type: object
-      description: A reusable classification of slot shape/kind with a default capacity envelope.
-      required: [name, defaultCapacity]
+      description: A reusable classification of slot shape/kind with a role and a default capacity envelope.
+      required: [name, role, defaultCapacity]
       properties:
         name:
           type: string
@@ -1516,20 +1568,35 @@ components:
             and Amnesty are the fleet's established vocabulary, but any name
             is accepted.
           example: PalletRack
+        role:
+          $ref: "#/components/schemas/LocationRole"
         defaultCapacity:
-          $ref: "#/components/schemas/Capacity"
+          allOf:
+            - $ref: "#/components/schemas/Capacity"
+          description: >
+            Required for a role whose RequiresCapacity() is true (Storage,
+            Staging, Drop, Consolidation). Omitted/zero for Dock, Yard,
+            WorkCenter, QC, Shipping.
 
     RegisterLocationTypeRequest:
       type: object
-      required: [name, defaultCapacity]
+      required: [name]
       properties:
         name:
           type: string
           minLength: 1
           description: The type's name.
           example: PalletRack
+        role:
+          allOf:
+            - $ref: "#/components/schemas/LocationRole"
+          description: Defaults to Storage when omitted.
         defaultCapacity:
-          $ref: "#/components/schemas/Capacity"
+          allOf:
+            - $ref: "#/components/schemas/Capacity"
+          description: >
+            Required for a role whose RequiresCapacity() is true. Omit for
+            Dock, Yard, WorkCenter, QC, or Shipping.
 
     ZonePredicate:
       type: object
@@ -1603,7 +1670,7 @@ components:
         The coded leaf location. Its identity IS its LocationCode. It owns
         whether the code exists, is active, and is legal for a given kind of
         storage unit — never what is stored in it.
-      required: [locationCode, zoneId, aisleId, coordinates, locationType, capacity, status]
+      required: [locationCode, zoneId, aisleId, coordinates, locationType, role, capacity, status]
       properties:
         locationCode:
           type: string
@@ -1623,6 +1690,20 @@ components:
           type: string
           description: The slot's LocationType.
           example: PalletRack
+        role:
+          $ref: "#/components/schemas/LocationRole"
+        dockFlow:
+          type: string
+          enum: [Inbound, Outbound, Both]
+          description: Set only when role is Dock (ADR-0016).
+          example: Outbound
+        activities:
+          type: array
+          items:
+            type: string
+            enum: [Pack, Sort, QC, VAS, Deconsolidate, Receive, Kit]
+          description: Set only when role is WorkCenter (ADR-0016).
+          example: [Pack, VAS]
         capacity:
           $ref: "#/components/schemas/Capacity"
         status:
@@ -1661,6 +1742,18 @@ components:
           minLength: 1
           description: An already-registered LocationType name.
           example: PalletRack
+        dockFlow:
+          type: string
+          enum: [Inbound, Outbound, Both]
+          description: Required when the LocationType's role is Dock; rejected for every other role.
+          example: Outbound
+        activities:
+          type: array
+          items:
+            type: string
+            enum: [Pack, Sort, QC, VAS, Deconsolidate, Receive, Kit]
+          description: Required (non-empty) when the LocationType's role is WorkCenter; rejected for every other role.
+          example: [Pack, VAS]
         capacityOverride:
           allOf:
             - $ref: "#/components/schemas/Capacity"
@@ -1735,6 +1828,18 @@ components:
           type: string
           description: An already-registered LocationType name.
           example: PalletRack
+        dockFlow:
+          type: string
+          enum: [Inbound, Outbound, Both]
+          description: Required when the row's LocationType role is Dock; rejected for every other role.
+          example: Outbound
+        activities:
+          type: array
+          items:
+            type: string
+            enum: [Pack, Sort, QC, VAS, Deconsolidate, Receive, Kit]
+          description: Required (non-empty) when the row's LocationType role is WorkCenter; rejected for every other role.
+          example: [Pack, VAS]
         capacityOverride:
           allOf:
             - $ref: "#/components/schemas/Capacity"

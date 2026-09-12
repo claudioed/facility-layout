@@ -42,7 +42,7 @@ func toCapacityResponse(c shared.Capacity) capacityResponse {
 }
 
 func toLocationTypeResponse(t placement.LocationType) locationTypeResponse {
-	return locationTypeResponse{Name: t.Name(), DefaultCapacity: toCapacityResponse(t.DefaultCapacity())}
+	return locationTypeResponse{Name: t.Name(), Role: string(t.Role()), DefaultCapacity: toCapacityResponse(t.DefaultCapacity())}
 }
 
 func toPlacementRuleResponse(rule placement.PlacementRule) placementRuleResponse {
@@ -74,15 +74,33 @@ func toCoordinatesResponse(code shared.LocationCode) coordinatesResponse {
 
 func toLocationSlotResponse(s *slot.LocationSlot) locationSlotResponse {
 	code := s.Code()
+	f := s.Functional()
 	return locationSlotResponse{
 		LocationCode: code.String(),
 		ZoneID:       code.ZoneID(),
 		AisleID:      code.AisleID(),
 		Coordinates:  toCoordinatesResponse(code),
 		LocationType: s.LocationType(),
+		Role:         string(s.Role()),
+		DockFlow:     string(f.DockFlow()),
+		Activities:   activityStringsHTTP(f.Activities()),
 		Capacity:     toCapacityResponse(s.Capacity()),
 		Status:       string(s.Status()),
 	}
+}
+
+// activityStringsHTTP converts a slot's Activity set to plain strings for
+// the response DTO, or nil when there are none, so "activities" is omitted
+// entirely for every non-WorkCenter slot.
+func activityStringsHTTP(activities []slot.Activity) []string {
+	if len(activities) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(activities))
+	for _, a := range activities {
+		out = append(out, string(a))
+	}
+	return out
 }
 
 func toLocationClassificationResponse(z *zone.Zone) locationClassificationResponse {
@@ -107,6 +125,8 @@ func toImportRow(row importRowRequest) usecases.ImportRow {
 		Level:            row.Level,
 		Position:         row.Position,
 		LocationType:     row.LocationType,
+		DockFlow:         row.DockFlow,
+		Activities:       row.Activities,
 	}
 	if row.CapacityOverride != nil {
 		out.MaxWeightKg = row.CapacityOverride.MaxWeightKg

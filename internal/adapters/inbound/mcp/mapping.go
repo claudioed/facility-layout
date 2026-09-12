@@ -95,6 +95,49 @@ type gridCellDTO struct {
 	SlotCodes []string `json:"slotCodes"`
 }
 
+// functionalLocationDTO is the compact projection of a non-storage-role
+// slot returned by list_functional_locations: code, coordinates, role, and
+// the role-conditional dockFlow/activities (ADR-0016). Deliberately not
+// the full LocationSlot shape (no locationType/capacity/status noise) —
+// the tool answers "where are this site's dock doors", not "describe this
+// slot in full".
+type functionalLocationDTO struct {
+	LocationCode string   `json:"locationCode"`
+	ZoneID       string   `json:"zoneId"`
+	AisleID      string   `json:"aisleId"`
+	Role         string   `json:"role"`
+	DockFlow     string   `json:"dockFlow,omitempty"`
+	Activities   []string `json:"activities,omitempty"`
+}
+
+// toFunctionalLocationDTO maps a domain LocationSlot to its compact tool DTO.
+func toFunctionalLocationDTO(s *slot.LocationSlot) functionalLocationDTO {
+	code := s.Code()
+	f := s.Functional()
+	return functionalLocationDTO{
+		LocationCode: code.String(),
+		ZoneID:       code.ZoneID(),
+		AisleID:      code.AisleID(),
+		Role:         string(s.Role()),
+		DockFlow:     string(f.DockFlow()),
+		Activities:   activityStringsMCP(f.Activities()),
+	}
+}
+
+// activityStringsMCP converts a slot's Activity set to plain strings, or nil
+// when there are none, so "activities" is omitted for every non-WorkCenter
+// location in the tool response.
+func activityStringsMCP(activities []slot.Activity) []string {
+	if len(activities) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(activities))
+	for _, a := range activities {
+		out = append(out, string(a))
+	}
+	return out
+}
+
 // mapping functions ------------------------------------------------------------
 
 // toSiteRef maps a domain Site to its compact reference DTO.

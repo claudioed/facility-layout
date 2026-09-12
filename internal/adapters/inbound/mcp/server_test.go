@@ -60,7 +60,7 @@ func newServer(t *testing.T) string {
 	if _, err := registerSite.Execute(ctx, "WH1", "Fulfilment Centre One"); err != nil {
 		t.Fatalf("seed site: %v", err)
 	}
-	if _, err := registerType.Execute(ctx, placement.PalletRack, mustCapacity(1200, 2.4)); err != nil {
+	if _, err := registerType.Execute(ctx, placement.PalletRack, placement.Storage, mustCapacity(1200, 2.4)); err != nil {
 		t.Fatalf("seed type: %v", err)
 	}
 	if _, err := registerZone.Execute(ctx, "WH1", "STOR", "AMB", shared.Ambient, false); err != nil {
@@ -69,7 +69,7 @@ func newServer(t *testing.T) string {
 	if _, err := registerAisle.Execute(ctx, "WH1-STOR-AMB", "A07", 7, shared.TwoWay); err != nil {
 		t.Fatalf("seed aisle: %v", err)
 	}
-	if _, err := registerSlot.Execute(ctx, mustCode("WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, shared.Capacity{}); err != nil {
+	if _, err := registerSlot.Execute(ctx, mustCode("WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, shared.Capacity{}, "", nil); err != nil {
 		t.Fatalf("seed slot: %v", err)
 	}
 

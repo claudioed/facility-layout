@@ -55,6 +55,12 @@ func statusFor(err error) int {
 		errors.Is(err, shared.ErrUnknownStatus),
 		errors.Is(err, placement.ErrUnknownEffect),
 		errors.Is(err, placement.ErrEmptyPredicate),
+		errors.Is(err, placement.ErrUnknownLocationRole),
+		errors.Is(err, slot.ErrUnknownDockFlow),
+		errors.Is(err, slot.ErrUnknownActivity),
+		errors.Is(err, slot.ErrDockFlowRequired),
+		errors.Is(err, slot.ErrWorkCenterActivitiesRequired),
+		errors.Is(err, slot.ErrFunctionalAttributesNotAllowed),
 		errors.Is(err, aisle.ErrNegativeSequenceHint),
 		errors.Is(err, slot.ErrZoneMismatch):
 		return http.StatusUnprocessableEntity
@@ -158,6 +164,18 @@ func problemFor(err error) problemInfo {
 		return problemInfo{"unknown-placement-effect", "Unknown placement rule effect"}
 	case errors.Is(err, placement.ErrEmptyPredicate):
 		return problemInfo{"empty-zone-predicate", "Placement rule predicate constrains nothing"}
+	case errors.Is(err, placement.ErrUnknownLocationRole):
+		return problemInfo{"unknown-location-role", "Unknown location role"}
+	case errors.Is(err, slot.ErrUnknownDockFlow):
+		return problemInfo{"unknown-dock-flow", "Unknown dock flow"}
+	case errors.Is(err, slot.ErrUnknownActivity):
+		return problemInfo{"unknown-activity", "Unknown work center activity"}
+	case errors.Is(err, slot.ErrDockFlowRequired):
+		return problemInfo{"dock-flow-required", "A Dock location requires a dockFlow"}
+	case errors.Is(err, slot.ErrWorkCenterActivitiesRequired):
+		return problemInfo{"work-center-activities-required", "A WorkCenter location requires at least one activity"}
+	case errors.Is(err, slot.ErrFunctionalAttributesNotAllowed):
+		return problemInfo{"functional-attributes-not-allowed", "dockFlow and activities may only be set on a Dock or WorkCenter location"}
 	case errors.Is(err, aisle.ErrNegativeSequenceHint):
 		return problemInfo{"negative-sequence-hint", "Aisle sequence hint must not be negative"}
 	case errors.Is(err, slot.ErrZoneMismatch):

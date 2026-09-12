@@ -30,11 +30,39 @@ func mustCapacity(t *testing.T, weight, volume float64) shared.Capacity {
 
 func mustLocationType(t *testing.T, name string, weight, volume float64) placement.LocationType {
 	t.Helper()
-	lt, err := placement.NewLocationType(name, mustCapacity(t, weight, volume))
+	lt, err := placement.NewLocationType(name, placement.Storage, mustCapacity(t, weight, volume))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	return lt
+}
+
+// mustLocationTypeWithRole builds a LocationType for a non-Storage role. A
+// zero weight/volume is passed straight through as the zero Capacity
+// (legal for a role that does not RequireCapacity()).
+func mustLocationTypeWithRole(t *testing.T, name string, role placement.LocationRole, weight, volume float64) placement.LocationType {
+	t.Helper()
+	capacity := shared.Capacity{}
+	if weight != 0 || volume != 0 {
+		capacity = mustCapacity(t, weight, volume)
+	}
+	lt, err := placement.NewLocationType(name, role, capacity)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return lt
+}
+
+// mustFunctional builds FunctionalAttributes for role, using dockFlow for
+// Dock and activities for WorkCenter (the caller passes whichever applies
+// and leaves the other at its zero value).
+func mustFunctional(t *testing.T, role placement.LocationRole, dockFlow slot.DockFlow, activities []slot.Activity) slot.FunctionalAttributes {
+	t.Helper()
+	f, err := slot.NewFunctionalAttributes(role, dockFlow, activities)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	return f
 }
 
 func mustRule(t *testing.T, id, locationType string, effect placement.Effect, zoneCode string, temperatureClass shared.TemperatureClass) placement.PlacementRule {
@@ -55,7 +83,7 @@ func TestNewLocationSlot(t *testing.T) {
 	palletRack := mustLocationType(t, placement.PalletRack, 1200, 2.4)
 
 	t.Run("uses the location type's default capacity envelope", func(t *testing.T) {
-		s, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), palletRack, shared.Capacity{}, ambientAttrs, nil)
+		s, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), palletRack, shared.Capacity{}, slot.FunctionalAttributes{}, ambientAttrs, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -65,13 +93,16 @@ func TestNewLocationSlot(t *testing.T) {
 		if s.Code().String() != "WH1-STOR-AMB-A07-03-02-B" || s.LocationType() != placement.PalletRack {
 			t.Fatalf("unexpected slot %q/%q", s.Code(), s.LocationType())
 		}
+		if s.Role() != placement.Storage {
+			t.Fatalf("expected Storage role by default, got %q", s.Role())
+		}
 		if !s.IsActive() || s.Status() != shared.Active {
 			t.Fatalf("a newly registered slot must be Active, got %q", s.Status())
 		}
 	})
 
 	t.Run("an explicit override beats the type default", func(t *testing.T) {
-		s, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), palletRack, mustCapacity(t, 500, 1.1), ambientAttrs, nil)
+		s, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), palletRack, mustCapacity(t, 500, 1.1), slot.FunctionalAttributes{}, ambientAttrs, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -81,31 +112,61 @@ func TestNewLocationSlot(t *testing.T) {
 	})
 
 	t.Run("a zero location code is rejected", func(t *testing.T) {
-		_, err := slot.NewLocationSlot(shared.LocationCode{}, palletRack, shared.Capacity{}, ambientAttrs, nil)
+		_, err := slot.NewLocationSlot(shared.LocationCode{}, palletRack, shared.Capacity{}, slot.FunctionalAttributes{}, ambientAttrs, nil)
 		if !errors.Is(err, slot.ErrMissingLocationCode) {
 			t.Fatalf("expected ErrMissingLocationCode, got %v", err)
 		}
 	})
 
 	t.Run("a zero location type is rejected", func(t *testing.T) {
-		_, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.LocationType{}, shared.Capacity{}, ambientAttrs, nil)
+		_, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.LocationType{}, shared.Capacity{}, slot.FunctionalAttributes{}, ambientAttrs, nil)
 		if !errors.Is(err, slot.ErrMissingLocationType) {
 			t.Fatalf("expected ErrMissingLocationType, got %v", err)
 		}
 	})
 
 	t.Run("zone attributes for a different zone are rejected", func(t *testing.T) {
-		_, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-FRZ-A07-03-02-B"), palletRack, shared.Capacity{}, ambientAttrs, nil)
+		_, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-FRZ-A07-03-02-B"), palletRack, shared.Capacity{}, slot.FunctionalAttributes{}, ambientAttrs, nil)
 		if !errors.Is(err, slot.ErrZoneMismatch) {
 			t.Fatalf("expected ErrZoneMismatch, got %v", err)
 		}
 	})
 
 	t.Run("a location type with no default capacity and no override is rejected", func(t *testing.T) {
-		bare := placement.RehydrateLocationType(placement.Staging, shared.Capacity{})
-		_, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), bare, shared.Capacity{}, ambientAttrs, nil)
+		bare := placement.RehydrateLocationType(placement.Staging, placement.Storage, shared.Capacity{})
+		_, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), bare, shared.Capacity{}, slot.FunctionalAttributes{}, ambientAttrs, nil)
 		if !errors.Is(err, shared.ErrInvalidMaxWeight) {
 			t.Fatalf("expected ErrInvalidMaxWeight, got %v", err)
+		}
+	})
+
+	t.Run("a Dock-role type with no capacity is accepted", func(t *testing.T) {
+		dockType := mustLocationTypeWithRole(t, "DockDoor", placement.Dock, 0, 0)
+		functional := mustFunctional(t, placement.Dock, slot.Outbound, nil)
+		dockAttrs := placement.ZoneAttributes{ZoneID: "WH1-DOCK-OB", ZoneCode: "OB", TemperatureClass: shared.Ambient}
+		s, err := slot.NewLocationSlot(mustCode(t, "WH1-DOCK-OB-D07-00-00-A"), dockType, shared.Capacity{}, functional, dockAttrs, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if s.Role() != placement.Dock || s.Functional().DockFlow() != slot.Outbound {
+			t.Fatalf("unexpected dock slot role/flow: %q/%q", s.Role(), s.Functional().DockFlow())
+		}
+		if !s.Capacity().IsZero() {
+			t.Fatalf("expected a Dock slot to have no capacity, got %v", s.Capacity())
+		}
+	})
+
+	t.Run("a WorkCenter-role type with activities is accepted", func(t *testing.T) {
+		workCenterType := mustLocationTypeWithRole(t, "PackStation", placement.WorkCenter, 0, 0)
+		functional := mustFunctional(t, placement.WorkCenter, "", []slot.Activity{slot.Pack, slot.VAS})
+		wcAttrs := placement.ZoneAttributes{ZoneID: "WH1-PACK-WC", ZoneCode: "WC", TemperatureClass: shared.Ambient}
+		s, err := slot.NewLocationSlot(mustCode(t, "WH1-PACK-WC-P01-00-00-A"), workCenterType, shared.Capacity{}, functional, wcAttrs, nil)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		activities := s.Functional().Activities()
+		if len(activities) != 2 || activities[0] != slot.Pack || activities[1] != slot.VAS {
+			t.Fatalf("unexpected work center activities: %v", activities)
 		}
 	})
 }
@@ -123,13 +184,13 @@ func TestNewLocationSlotEnforcesPlacementRules(t *testing.T) {
 	}
 
 	t.Run("a legal placement is accepted", func(t *testing.T) {
-		if _, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-HAZ-A01-01-01-A"), palletRack, shared.Capacity{}, hazAttrs, rules); err != nil {
+		if _, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-HAZ-A01-01-01-A"), palletRack, shared.Capacity{}, slot.FunctionalAttributes{}, hazAttrs, rules); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
 	t.Run("a type outside the zone's allow-list is rejected naming the rule", func(t *testing.T) {
-		_, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-HAZ-A01-01-01-A"), shelf, shared.Capacity{}, hazAttrs, rules)
+		_, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-HAZ-A01-01-01-A"), shelf, shared.Capacity{}, slot.FunctionalAttributes{}, hazAttrs, rules)
 		if !errors.Is(err, placement.ErrPlacementRuleViolated) {
 			t.Fatalf("expected ErrPlacementRuleViolated, got %v", err)
 		}
@@ -139,7 +200,7 @@ func TestNewLocationSlotEnforcesPlacementRules(t *testing.T) {
 	})
 
 	t.Run("a denied type in a frozen zone is rejected naming the rule", func(t *testing.T) {
-		_, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-FRZ-A02-01-01-A"), shelf, shared.Capacity{}, frozenAttrs, rules)
+		_, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-FRZ-A02-01-01-A"), shelf, shared.Capacity{}, slot.FunctionalAttributes{}, frozenAttrs, rules)
 		if !errors.Is(err, placement.ErrPlacementRuleViolated) {
 			t.Fatalf("expected ErrPlacementRuleViolated, got %v", err)
 		}
@@ -151,7 +212,7 @@ func TestNewLocationSlotEnforcesPlacementRules(t *testing.T) {
 
 func TestLocationSlotDecommissionIsOneWay(t *testing.T) {
 	attrs := placement.ZoneAttributes{ZoneID: "WH1-STOR-AMB", ZoneCode: "AMB", TemperatureClass: shared.Ambient}
-	s, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), mustLocationType(t, placement.PalletRack, 1200, 2.4), shared.Capacity{}, attrs, nil)
+	s, err := slot.NewLocationSlot(mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), mustLocationType(t, placement.PalletRack, 1200, 2.4), shared.Capacity{}, slot.FunctionalAttributes{}, attrs, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -169,7 +230,7 @@ func TestLocationSlotDecommissionIsOneWay(t *testing.T) {
 
 func TestRehydrateLocationSlot(t *testing.T) {
 	code := mustCode(t, "WH1-RCV-AMB-D01-01-01-A")
-	s := slot.RehydrateLocationSlot(code, placement.Staging, mustCapacity(t, 900, 3), shared.UnderMaintenance)
+	s := slot.RehydrateLocationSlot(code, placement.Staging, placement.Storage, slot.FunctionalAttributes{}, mustCapacity(t, 900, 3), shared.UnderMaintenance)
 
 	if s.Code() != code || s.LocationType() != placement.Staging {
 		t.Fatalf("unexpected rehydrated slot %q/%q", s.Code(), s.LocationType())

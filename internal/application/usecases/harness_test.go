@@ -132,14 +132,14 @@ func (h *harness) mustRegisterAisle(zoneID, aisleCode string, sequenceHint int, 
 
 func (h *harness) mustRegisterLocationType(name string, weight, volume float64) {
 	h.t.Helper()
-	if _, err := h.registerLocationType.Execute(h.ctx(), name, mustCapacity(h.t, weight, volume)); err != nil {
+	if _, err := h.registerLocationType.Execute(h.ctx(), name, placement.Storage, mustCapacity(h.t, weight, volume)); err != nil {
 		h.t.Fatalf("seeding location type %q: %v", name, err)
 	}
 }
 
 func (h *harness) mustRegisterSlot(raw, locationType string) {
 	h.t.Helper()
-	if _, err := h.registerSlot.Execute(h.ctx(), mustCode(h.t, raw), locationType, shared.Capacity{}); err != nil {
+	if _, err := h.registerSlot.Execute(h.ctx(), mustCode(h.t, raw), locationType, shared.Capacity{}, "", nil); err != nil {
 		h.t.Fatalf("seeding slot %q: %v", raw, err)
 	}
 }

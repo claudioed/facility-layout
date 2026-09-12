@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/claudioed/facility-layout/internal/domain/placement"
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
 )
@@ -25,28 +26,35 @@ func NewSlotRepo(pool *pgxpool.Pool) *SlotRepo {
 }
 
 const slotColumns = `code, site_segment, area_segment, zone_segment, aisle_segment,
-	bay_segment, level_segment, position_segment, location_type, max_weight_kg, max_volume_m3, status`
+	bay_segment, level_segment, position_segment, location_type, role, dock_flow, activities,
+	max_weight_kg, max_volume_m3, status`
 
 // Save upserts the slot.
 func (r *SlotRepo) Save(ctx context.Context, s *slot.LocationSlot) error {
 	code := s.Code()
+	functional := s.Functional()
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO location_slots (
 			code, site_segment, area_segment, zone_segment, aisle_segment,
 			bay_segment, level_segment, position_segment,
-			zone_id, aisle_id, location_type, max_weight_kg, max_volume_m3, status
+			zone_id, aisle_id, location_type, role, dock_flow, activities,
+			max_weight_kg, max_volume_m3, status
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		ON CONFLICT (code) DO UPDATE SET
 			location_type = EXCLUDED.location_type,
+			role = EXCLUDED.role,
+			dock_flow = EXCLUDED.dock_flow,
+			activities = EXCLUDED.activities,
 			max_weight_kg = EXCLUDED.max_weight_kg,
 			max_volume_m3 = EXCLUDED.max_volume_m3,
 			status = EXCLUDED.status
 	`,
 		code.String(), code.Site(), code.Area(), code.Zone(), code.Aisle(),
 		code.Bay(), code.Level(), code.Position(),
-		code.ZoneID(), code.AisleID(), s.LocationType(),
-		s.Capacity().MaxWeightKg(), s.Capacity().MaxVolumeM3(), string(s.Status()))
+		code.ZoneID(), code.AisleID(), s.LocationType(), string(s.Role()),
+		nullableDockFlow(functional), activityColumn(functional),
+		nullableFloat(s.Capacity()), nullableVolume(s.Capacity()), string(s.Status()))
 	return err
 }
 
@@ -100,11 +108,13 @@ type scanner interface {
 }
 
 func scanSlot(row scanner) (*slot.LocationSlot, error) {
-	var raw, site, area, zoneSeg, aisleSeg, bay, level, position, locationType, status string
-	var maxWeightKg, maxVolumeM3 float64
+	var raw, site, area, zoneSeg, aisleSeg, bay, level, position, locationType, role, status string
+	var dockFlow *string
+	var activities []string
+	var maxWeightKg, maxVolumeM3 *float64
 
 	if err := row.Scan(&raw, &site, &area, &zoneSeg, &aisleSeg, &bay, &level, &position,
-		&locationType, &maxWeightKg, &maxVolumeM3, &status); err != nil {
+		&locationType, &role, &dockFlow, &activities, &maxWeightKg, &maxVolumeM3, &status); err != nil {
 		return nil, err
 	}
 
@@ -112,7 +122,7 @@ func scanSlot(row scanner) (*slot.LocationSlot, error) {
 	if err != nil {
 		return nil, err
 	}
-	capacity, err := shared.NewCapacity(maxWeightKg, maxVolumeM3)
+	capacity, err := capacityFromNullable(maxWeightKg, maxVolumeM3)
 	if err != nil {
 		return nil, err
 	}
@@ -120,5 +130,52 @@ func scanSlot(row scanner) (*slot.LocationSlot, error) {
 	if err != nil {
 		return nil, err
 	}
-	return slot.RehydrateLocationSlot(code, locationType, capacity, st), nil
+	locationRole, err := placement.ParseLocationRole(role)
+	if err != nil {
+		return nil, err
+	}
+	functional, err := functionalFromColumns(locationRole, dockFlow, activities)
+	if err != nil {
+		return nil, err
+	}
+	return slot.RehydrateLocationSlot(code, locationType, locationRole, functional, capacity, st), nil
+}
+
+// nullableDockFlow returns functional's DockFlow as a pointer, or nil when
+// it is empty — the shape for every slot whose role is not Dock.
+func nullableDockFlow(functional slot.FunctionalAttributes) *string {
+	if functional.DockFlow() == "" {
+		return nil
+	}
+	flow := string(functional.DockFlow())
+	return &flow
+}
+
+// activityColumn returns functional's Activities as a plain string slice
+// for the TEXT[] column, or nil when there are none — the shape for every
+// slot whose role is not WorkCenter.
+func activityColumn(functional slot.FunctionalAttributes) []string {
+	activities := functional.Activities()
+	if len(activities) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(activities))
+	for _, a := range activities {
+		out = append(out, string(a))
+	}
+	return out
+}
+
+// functionalFromColumns rebuilds FunctionalAttributes from the possibly-NULL
+// stored dockFlow/activities columns, for the given role.
+func functionalFromColumns(role placement.LocationRole, dockFlow *string, activities []string) (slot.FunctionalAttributes, error) {
+	var flow slot.DockFlow
+	if dockFlow != nil {
+		flow = slot.DockFlow(*dockFlow)
+	}
+	var parsed []slot.Activity
+	for _, raw := range activities {
+		parsed = append(parsed, slot.Activity(raw))
+	}
+	return slot.NewFunctionalAttributes(role, flow, parsed)
 }
