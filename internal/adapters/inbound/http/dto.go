@@ -129,6 +129,14 @@ type rectRequest struct {
 	Size   dimensionsRequest `json:"size"`
 }
 
+// registerCrossAisleRequest declares a zone-scoped connection between two
+// of its aisles at a bay ordinal (ADR-0017).
+type registerCrossAisleRequest struct {
+	FromAisle string `json:"fromAisle"`
+	ToAisle   string `json:"toAisle"`
+	AtBay     string `json:"atBay"`
+}
+
 // ------------------------------------------------------------ responses ----
 
 type siteResponse struct {
@@ -326,6 +334,49 @@ type gridPositionResponse struct {
 	Position     string `json:"position"`
 	LocationType string `json:"locationType"`
 	Status       string `json:"status"`
+}
+
+// -------------------------------------------------------- travel graph ----
+
+// crossAisleResponse is one zone-scoped connection between two aisles at a
+// bay ordinal (ADR-0017).
+type crossAisleResponse struct {
+	ZoneID    string `json:"zoneId"`
+	FromAisle string `json:"fromAisle"`
+	ToAisle   string `json:"toAisle"`
+	AtBay     string `json:"atBay"`
+	Active    bool   `json:"active"`
+}
+
+// travelNodeResponse is one aisle/bay waypoint on the travel graph.
+type travelNodeResponse struct {
+	AisleID string `json:"aisleId"`
+	Bay     string `json:"bay"`
+}
+
+// travelEdgeResponse is one directed, weighted connection between two
+// waypoints on the travel graph.
+type travelEdgeResponse struct {
+	From      travelNodeResponse `json:"from"`
+	To        travelNodeResponse `json:"to"`
+	MetresM   float64            `json:"metresM"`
+	Estimated bool               `json:"estimated"`
+}
+
+// travelGraphResponse is a zone's full travel graph: every waypoint and
+// every directed edge between them (ADR-0017).
+type travelGraphResponse struct {
+	Nodes []travelNodeResponse `json:"nodes"`
+	Edges []travelEdgeResponse `json:"edges"`
+}
+
+// travelDistanceResponse is the outcome of a GET /distance query: the
+// shortest path's total length, whether any leg was estimated rather than
+// measured, and the ordered waypoints traversed (ADR-0017).
+type travelDistanceResponse struct {
+	MetresM   float64              `json:"metresM"`
+	Estimated bool                 `json:"estimated"`
+	Route     []travelNodeResponse `json:"route"`
 }
 
 // ----------------------------------------------------------- RFC 7807 -----

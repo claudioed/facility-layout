@@ -28,6 +28,7 @@ type harness struct {
 	locationTypes *memory.LocationTypeRepo
 	rules         *memory.PlacementRuleRepo
 	structures    *memory.FixedStructureRepo
+	crossAisles   *memory.CrossAisleRepo
 	publisher     *events.BufferedPublisher
 	clock         *memory.FixedClock
 	metrics       *recordingMetrics
@@ -54,6 +55,9 @@ type harness struct {
 	setAisleGeometry          *usecases.SetAisleGeometry
 	registerFixedStructure    *usecases.RegisterFixedStructure
 	listFixedStructures       *usecases.ListFixedStructures
+	registerCrossAisle        *usecases.RegisterCrossAisle
+	getZoneTravelGraph        *usecases.GetZoneTravelGraph
+	estimateTravelDistance    *usecases.EstimateTravelDistance
 }
 
 func newHarness(t *testing.T) *harness {
@@ -68,6 +72,7 @@ func newHarness(t *testing.T) *harness {
 		locationTypes: memory.NewLocationTypeRepo(),
 		rules:         memory.NewPlacementRuleRepo(),
 		structures:    memory.NewFixedStructureRepo(),
+		crossAisles:   memory.NewCrossAisleRepo(),
 		publisher:     events.NewBufferedPublisher(),
 		clock:         memory.NewFixedClock(fixedNow),
 		metrics:       &recordingMetrics{},
@@ -103,6 +108,15 @@ func newHarness(t *testing.T) *harness {
 	h.setAisleGeometry = &usecases.SetAisleGeometry{Aisles: h.aisles, Events: h.publisher, Clock: h.clock}
 	h.registerFixedStructure = &usecases.RegisterFixedStructure{Sites: h.sites, Structures: h.structures, Events: h.publisher, Clock: h.clock}
 	h.listFixedStructures = &usecases.ListFixedStructures{Sites: h.sites, Structures: h.structures}
+	h.registerCrossAisle = &usecases.RegisterCrossAisle{
+		Zones: h.zones, Aisles: h.aisles, CrossAisles: h.crossAisles, Events: h.publisher, Clock: h.clock,
+	}
+	h.getZoneTravelGraph = &usecases.GetZoneTravelGraph{
+		Zones: h.zones, Aisles: h.aisles, Slots: h.slots, CrossAisles: h.crossAisles,
+	}
+	h.estimateTravelDistance = &usecases.EstimateTravelDistance{
+		Zones: h.zones, Aisles: h.aisles, Slots: h.slots, CrossAisles: h.crossAisles,
+	}
 
 	return h
 }

@@ -297,3 +297,24 @@ func NewFixedStructureRegistered(occurredAt time.Time, structureID, siteCode, ki
 		Label:       label,
 	}
 }
+
+// CrossAisleRegistered: a zone-scoped connection between two of its aisles
+// at a bay ordinal was added to the travel graph (ADR-0017).
+type CrossAisleRegistered struct {
+	base
+	ZoneID    string `json:"zoneId"`
+	FromAisle string `json:"fromAisle"`
+	ToAisle   string `json:"toAisle"`
+	AtBay     string `json:"atBay"`
+}
+
+// NewCrossAisleRegistered builds a CrossAisleRegistered event.
+func NewCrossAisleRegistered(occurredAt time.Time, zoneID, fromAisle, toAisle, atBay string) CrossAisleRegistered {
+	return CrossAisleRegistered{
+		base:      newBase("crossaisle", "CrossAisleRegistered", occurredAt),
+		ZoneID:    zoneID,
+		FromAisle: fromAisle,
+		ToAisle:   toAisle,
+		AtBay:     atBay,
+	}
+}

@@ -41,6 +41,18 @@ type AisleRepo interface {
 	ListByZone(ctx context.Context, zoneID string) ([]*aisle.Aisle, error)
 }
 
+// CrossAisleRepo persists and retrieves CrossAisle aggregates, scoped by
+// zone (ADR-0017).
+type CrossAisleRepo interface {
+	Save(ctx context.Context, c *aisle.CrossAisle) error
+	// FindByAisles returns the cross-aisle connecting fromAisle and
+	// toAisle at atBay within zoneID, or (nil, nil) when none exists —
+	// used to reject a duplicate registration regardless of which side
+	// is named "from" (the connection is symmetric).
+	FindByAisles(ctx context.Context, zoneID, fromAisle, toAisle, atBay string) (*aisle.CrossAisle, error)
+	ListByZone(ctx context.Context, zoneID string) ([]*aisle.CrossAisle, error)
+}
+
 // SlotRepo persists and retrieves LocationSlot aggregates, keyed by their
 // LocationCode (which is their identity).
 type SlotRepo interface {

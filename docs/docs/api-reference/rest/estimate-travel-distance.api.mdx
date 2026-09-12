@@ -1,0 +1,72 @@
+---
+id: estimate-travel-distance
+title: "Compute the shortest travel distance between two locations"
+description: "Computes the shortest travel distance, in metres, between two coded locations over the pure-domain travel graph (ADR-0017): Dijkstra's algorithm honouring one-way aisles and active cross-aisles. The result is flagged `estimated` when any leg of the route used a zone's bay-pitch fallback instead of real aisle centreline geometry."
+sidebar_label: "Compute the shortest travel distance between two locations"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "get api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Compute the shortest travel distance between two locations"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/distance"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Computes the shortest travel distance, in metres, between two coded locations over the pure-domain travel graph (ADR-0017): Dijkstra's algorithm honouring one-way aisles and active cross-aisles. The result is flagged `estimated` when any leg of the route used a zone's bay-pitch fallback instead of real aisle centreline geometry.
+
+Refuses (422, does not guess) when `from` and `to` are in different zones — this phase's graph does not yet connect zones. This context reports map TOPOLOGY only: travel TIME, congestion, and route choice under load remain wes-work-planning's concern, never this one's.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./estimate-travel-distance.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./estimate-travel-distance.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./estimate-travel-distance.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

@@ -19,6 +19,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/domain/site"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
 	"github.com/claudioed/facility-layout/internal/domain/structure"
+	"github.com/claudioed/facility-layout/internal/domain/travel"
 )
 
 // tool-boundary DTOs -----------------------------------------------------------
@@ -243,4 +244,67 @@ func toFixedStructureDTO(f *structure.FixedStructure) fixedStructureDTO {
 		HeightM: footprint.Size().HeightM(),
 		Label:   f.Label(),
 	}
+}
+
+// travelNodeDTO is one aisle/bay waypoint on the travel graph (ADR-0017).
+type travelNodeDTO struct {
+	AisleID string `json:"aisleId"`
+	Bay     string `json:"bay"`
+}
+
+// toTravelNodeDTO maps a domain travel.Node to its tool DTO.
+func toTravelNodeDTO(n travel.Node) travelNodeDTO {
+	return travelNodeDTO{AisleID: n.AisleID, Bay: n.Bay}
+}
+
+// travelDistanceDTO is the outcome of estimate_travel_distance: the
+// shortest path's total length, whether any leg was estimated rather than
+// measured, and the ordered waypoints traversed.
+type travelDistanceDTO struct {
+	MetresM   float64         `json:"metresM"`
+	Estimated bool            `json:"estimated"`
+	Route     []travelNodeDTO `json:"route"`
+}
+
+// toTravelDistanceDTO maps the EstimateTravelDistance read model into the
+// tool DTO.
+func toTravelDistanceDTO(d *usecases.TravelDistance) travelDistanceDTO {
+	route := make([]travelNodeDTO, 0, len(d.Route))
+	for _, n := range d.Route {
+		route = append(route, toTravelNodeDTO(n))
+	}
+	return travelDistanceDTO{MetresM: d.MetresM, Estimated: d.Estimated, Route: route}
+}
+
+// travelEdgeDTO is one directed, weighted connection between two waypoints
+// on the travel graph.
+type travelEdgeDTO struct {
+	From      travelNodeDTO `json:"from"`
+	To        travelNodeDTO `json:"to"`
+	MetresM   float64       `json:"metresM"`
+	Estimated bool          `json:"estimated"`
+}
+
+// travelGraphDTO is a zone's full travel graph: every waypoint and every
+// directed edge between them, returned by get_zone_travel_graph.
+type travelGraphDTO struct {
+	Nodes []travelNodeDTO `json:"nodes"`
+	Edges []travelEdgeDTO `json:"edges"`
+}
+
+// toTravelGraphDTO maps the GetZoneTravelGraph read model into the tool DTO.
+func toTravelGraphDTO(view *usecases.TravelGraphView) travelGraphDTO {
+	out := travelGraphDTO{Nodes: make([]travelNodeDTO, 0, len(view.Nodes)), Edges: make([]travelEdgeDTO, 0, len(view.Edges))}
+	for _, n := range view.Nodes {
+		out.Nodes = append(out.Nodes, toTravelNodeDTO(n))
+	}
+	for _, e := range view.Edges {
+		out.Edges = append(out.Edges, travelEdgeDTO{
+			From:      toTravelNodeDTO(e.From),
+			To:        toTravelNodeDTO(e.To),
+			MetresM:   e.MetresM,
+			Estimated: e.Estimated,
+		})
+	}
+	return out
 }

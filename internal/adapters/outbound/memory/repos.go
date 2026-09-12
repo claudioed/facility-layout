@@ -150,6 +150,73 @@ func (r *AisleRepo) ListByZone(_ context.Context, zoneID string) ([]*aisle.Aisle
 	return out, nil
 }
 
+// crossAisleKey uniquely identifies a cross-aisle regardless of which side
+// was named "from" — the connection is symmetric.
+type crossAisleKey struct {
+	zoneID, a, b, atBay string
+}
+
+func newCrossAisleKey(zoneID, fromAisle, toAisle, atBay string) crossAisleKey {
+	if fromAisle > toAisle {
+		fromAisle, toAisle = toAisle, fromAisle
+	}
+	return crossAisleKey{zoneID: zoneID, a: fromAisle, b: toAisle, atBay: atBay}
+}
+
+// CrossAisleRepo is an in-memory implementation of ports.CrossAisleRepo.
+type CrossAisleRepo struct {
+	mu   sync.RWMutex
+	rows map[crossAisleKey]*aisle.CrossAisle
+}
+
+// NewCrossAisleRepo builds an empty CrossAisleRepo.
+func NewCrossAisleRepo() *CrossAisleRepo {
+	return &CrossAisleRepo{rows: make(map[crossAisleKey]*aisle.CrossAisle)}
+}
+
+// Save stores the cross-aisle under its symmetric key.
+func (r *CrossAisleRepo) Save(_ context.Context, c *aisle.CrossAisle) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.rows[newCrossAisleKey(c.ZoneID(), c.FromAisle(), c.ToAisle(), c.AtBay())] = c
+	return nil
+}
+
+// FindByAisles returns the cross-aisle connecting fromAisle and toAisle at
+// atBay, or (nil, nil) when none exists.
+func (r *CrossAisleRepo) FindByAisles(_ context.Context, zoneID, fromAisle, toAisle, atBay string) (*aisle.CrossAisle, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	c, ok := r.rows[newCrossAisleKey(zoneID, fromAisle, toAisle, atBay)]
+	if !ok {
+		return nil, nil
+	}
+	return c, nil
+}
+
+// ListByZone returns every cross-aisle in a zone, ordered by from-aisle,
+// to-aisle, bay.
+func (r *CrossAisleRepo) ListByZone(_ context.Context, zoneID string) ([]*aisle.CrossAisle, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	out := make([]*aisle.CrossAisle, 0)
+	for _, c := range r.rows {
+		if c.ZoneID() == zoneID {
+			out = append(out, c)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].FromAisle() != out[j].FromAisle() {
+			return out[i].FromAisle() < out[j].FromAisle()
+		}
+		if out[i].ToAisle() != out[j].ToAisle() {
+			return out[i].ToAisle() < out[j].ToAisle()
+		}
+		return out[i].AtBay() < out[j].AtBay()
+	})
+	return out, nil
+}
+
 // SlotRepo is an in-memory implementation of ports.SlotRepo.
 type SlotRepo struct {
 	mu    sync.RWMutex

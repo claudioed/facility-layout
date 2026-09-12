@@ -133,6 +133,7 @@ type adapterSet struct {
 	locationTypes ports.LocationTypeRepo
 	rules         ports.PlacementRuleRepo
 	structures    ports.FixedStructureRepo
+	crossAisles   ports.CrossAisleRepo
 	publisher     ports.EventPublisher
 }
 
@@ -182,6 +183,16 @@ func newServer(a adapterSet, clock ports.Clock, locationMetrics ports.LocationMe
 		SetAisleGeometry:       &usecases.SetAisleGeometry{Aisles: a.aisles, Events: a.publisher, Clock: clock},
 		RegisterFixedStructure: &usecases.RegisterFixedStructure{Sites: a.sites, Structures: a.structures, Events: a.publisher, Clock: clock},
 		ListFixedStructures:    &usecases.ListFixedStructures{Sites: a.sites, Structures: a.structures},
+
+		RegisterCrossAisle: &usecases.RegisterCrossAisle{
+			Zones: a.zones, Aisles: a.aisles, CrossAisles: a.crossAisles, Events: a.publisher, Clock: clock,
+		},
+		GetZoneTravelGraph: &usecases.GetZoneTravelGraph{
+			Zones: a.zones, Aisles: a.aisles, Slots: a.slots, CrossAisles: a.crossAisles,
+		},
+		EstimateTravelDistance: &usecases.EstimateTravelDistance{
+			Zones: a.zones, Aisles: a.aisles, Slots: a.slots, CrossAisles: a.crossAisles,
+		},
 	}
 }
 
@@ -252,6 +263,7 @@ func buildAdapters(cfg publisherConfig, logger *slog.Logger) (adapterSet, func()
 			locationTypes: memory.NewLocationTypeRepo(),
 			rules:         memory.NewPlacementRuleRepo(),
 			structures:    memory.NewFixedStructureRepo(),
+			crossAisles:   memory.NewCrossAisleRepo(),
 			publisher:     pub,
 		}, closeFn, nil
 	}
@@ -284,6 +296,7 @@ func buildAdapters(cfg publisherConfig, logger *slog.Logger) (adapterSet, func()
 		locationTypes: postgres.NewLocationTypeRepo(pool),
 		rules:         postgres.NewPlacementRuleRepo(pool),
 		structures:    postgres.NewFixedStructureRepo(pool),
+		crossAisles:   postgres.NewCrossAisleRepo(pool),
 		publisher:     pub,
 	}, closeFn, nil
 }

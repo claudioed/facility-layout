@@ -11,6 +11,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/domain/site"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
 	"github.com/claudioed/facility-layout/internal/domain/structure"
+	"github.com/claudioed/facility-layout/internal/domain/travel"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
 )
 
@@ -40,6 +41,7 @@ func statusFor(err error) int {
 		errors.Is(err, usecases.ErrDuplicatePlacementRule),
 		errors.Is(err, usecases.ErrDuplicateLocationCode),
 		errors.Is(err, usecases.ErrDuplicateFixedStructure),
+		errors.Is(err, usecases.ErrDuplicateCrossAisle),
 		errors.Is(err, usecases.ErrSiteNotActive),
 		errors.Is(err, usecases.ErrZoneNotActive),
 		errors.Is(err, usecases.ErrAisleNotActive),
@@ -47,6 +49,7 @@ func statusFor(err error) int {
 		errors.Is(err, zone.ErrAlreadyDecommissioned),
 		errors.Is(err, aisle.ErrAlreadyDecommissioned),
 		errors.Is(err, aisle.ErrAisleDecommissioned),
+		errors.Is(err, aisle.ErrCrossAisleAlreadyDecommissioned),
 		errors.Is(err, slot.ErrAlreadyDecommissioned),
 		errors.Is(err, slot.ErrSlotDecommissioned):
 		return http.StatusConflict
@@ -71,7 +74,13 @@ func statusFor(err error) int {
 		errors.Is(err, aisle.ErrNegativeSequenceHint),
 		errors.Is(err, slot.ErrZoneMismatch),
 		errors.Is(err, structure.ErrUnknownKind),
-		errors.Is(err, structure.ErrEmptyFootprint):
+		errors.Is(err, structure.ErrEmptyFootprint),
+		errors.Is(err, aisle.ErrCrossAisleSameAisle),
+		errors.Is(err, usecases.ErrCrossAisleAisleMismatch),
+		errors.Is(err, usecases.ErrNoRouteBetweenZones),
+		errors.Is(err, travel.ErrNoRoute),
+		errors.Is(err, travel.ErrUnknownNode),
+		errors.Is(err, zone.ErrInvalidPitch):
 		return http.StatusUnprocessableEntity
 
 	case errors.Is(err, shared.ErrMalformedLocationCode),
@@ -95,6 +104,10 @@ func statusFor(err error) int {
 		errors.Is(err, structure.ErrEmptyID),
 		errors.Is(err, structure.ErrEmptySiteCode),
 		errors.Is(err, structure.ErrEmptyLabel),
+		errors.Is(err, aisle.ErrCrossAisleEmptyZoneID),
+		errors.Is(err, aisle.ErrCrossAisleEmptyFromAisle),
+		errors.Is(err, aisle.ErrCrossAisleEmptyToAisle),
+		errors.Is(err, aisle.ErrCrossAisleEmptyBay),
 		errors.Is(err, usecases.ErrEmptyImport):
 		return http.StatusBadRequest
 
@@ -148,6 +161,8 @@ func problemFor(err error) problemInfo {
 		return problemInfo{"duplicate-location-code", "A location slot with this code already exists"}
 	case errors.Is(err, usecases.ErrDuplicateFixedStructure):
 		return problemInfo{"duplicate-fixed-structure", "A fixed structure with this id already exists"}
+	case errors.Is(err, usecases.ErrDuplicateCrossAisle):
+		return problemInfo{"duplicate-cross-aisle", "A cross-aisle between these aisles at this bay already exists"}
 
 	case errors.Is(err, usecases.ErrSiteNotActive):
 		return problemInfo{"site-not-active", "Site is not active"}
@@ -156,10 +171,11 @@ func problemFor(err error) problemInfo {
 	case errors.Is(err, usecases.ErrAisleNotActive):
 		return problemInfo{"aisle-not-active", "Aisle is not active"}
 
-	case errors.Is(err, site.ErrAlreadyDecommissioned),
-		errors.Is(err, zone.ErrAlreadyDecommissioned),
-		errors.Is(err, aisle.ErrAlreadyDecommissioned),
+	case errors.Is(err, aisle.ErrAlreadyDecommissioned),
 		errors.Is(err, aisle.ErrAisleDecommissioned),
+		errors.Is(err, aisle.ErrCrossAisleAlreadyDecommissioned),
+		errors.Is(err, site.ErrAlreadyDecommissioned),
+		errors.Is(err, zone.ErrAlreadyDecommissioned),
 		errors.Is(err, slot.ErrAlreadyDecommissioned),
 		errors.Is(err, slot.ErrSlotDecommissioned):
 		return problemInfo{"already-decommissioned", "This structure is already decommissioned"}
@@ -206,6 +222,18 @@ func problemFor(err error) problemInfo {
 		return problemInfo{"unknown-fixed-structure-kind", "Unknown fixed structure kind"}
 	case errors.Is(err, structure.ErrEmptyFootprint):
 		return problemInfo{"empty-fixed-structure-footprint", "Fixed structure requires a real footprint"}
+	case errors.Is(err, aisle.ErrCrossAisleSameAisle):
+		return problemInfo{"cross-aisle-same-aisle", "Cross-aisle must connect two distinct aisles"}
+	case errors.Is(err, usecases.ErrCrossAisleAisleMismatch):
+		return problemInfo{"cross-aisle-aisle-mismatch", "Cross-aisle aisles must both belong to the named zone"}
+	case errors.Is(err, usecases.ErrNoRouteBetweenZones):
+		return problemInfo{"no-route-between-zones", "No route: the two locations are in different zones"}
+	case errors.Is(err, travel.ErrNoRoute):
+		return problemInfo{"no-route", "No route exists between these two waypoints"}
+	case errors.Is(err, travel.ErrUnknownNode):
+		return problemInfo{"unknown-travel-waypoint", "The travel graph has no waypoint for this aisle/bay"}
+	case errors.Is(err, zone.ErrInvalidPitch):
+		return problemInfo{"invalid-pitch", "Bay pitch and level pitch must both be greater than zero"}
 
 	case errors.Is(err, shared.ErrMalformedLocationCode),
 		errors.Is(err, shared.ErrEmptyLocationSegment),
@@ -231,6 +259,14 @@ func problemFor(err error) problemInfo {
 		return problemInfo{"empty-fixed-structure-site-code", "Fixed structure must be scoped to a site code"}
 	case errors.Is(err, structure.ErrEmptyLabel):
 		return problemInfo{"empty-fixed-structure-label", "Fixed structure requires a label"}
+	case errors.Is(err, aisle.ErrCrossAisleEmptyZoneID):
+		return problemInfo{"empty-cross-aisle-zone-id", "Cross-aisle must be scoped to a zone id"}
+	case errors.Is(err, aisle.ErrCrossAisleEmptyFromAisle):
+		return problemInfo{"empty-cross-aisle-from-aisle", "Cross-aisle requires a from-aisle code"}
+	case errors.Is(err, aisle.ErrCrossAisleEmptyToAisle):
+		return problemInfo{"empty-cross-aisle-to-aisle", "Cross-aisle requires a to-aisle code"}
+	case errors.Is(err, aisle.ErrCrossAisleEmptyBay):
+		return problemInfo{"empty-cross-aisle-bay", "Cross-aisle requires a bay"}
 	case errors.Is(err, usecases.ErrEmptyImport):
 		return problemInfo{"empty-import", "Facility layout import must contain at least one row"}
 

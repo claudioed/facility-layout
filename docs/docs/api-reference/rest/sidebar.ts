@@ -94,6 +94,12 @@ const sidebar: SidebarsConfig = {
           label: "Set an aisle's travel centreline",
           className: "api-method put",
         },
+        {
+          type: "doc",
+          id: "api-reference/rest/register-cross-aisle",
+          label: "Register a connection between two aisles",
+          className: "api-method post",
+        },
       ],
     },
     {
@@ -228,6 +234,18 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "api-reference/rest/get-zone-grid",
           label: "Get a zone as a 2D renderable grid",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/get-zone-travel-graph",
+          label: "Get one zone's travel graph",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/estimate-travel-distance",
+          label: "Compute the shortest travel distance between two locations",
           className: "api-method get",
         },
       ],

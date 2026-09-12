@@ -163,6 +163,87 @@ func TestNewSegment(t *testing.T) {
 	})
 }
 
+func TestSegmentDistanceToPoint(t *testing.T) {
+	// A genuinely 3D, non-axis-aligned segment (direction (3,4,12), length
+	// 13 — a Pythagorean quadruple) so every one of ax/ay/az and
+	// bx/by/bz is non-zero and distinct for every test point below. An
+	// axis-aligned segment (e.g. start=(0,0,0), end=(10,0,0)) would make
+	// the y/z terms of the dot product and lengthSquared always zero,
+	// letting an arithmetic-operator or sign-inversion mutant on those
+	// terms survive undetected.
+	start := mustPoint(t, 1, 2, 15)
+	end := mustPoint(t, 4, 6, 27)
+	s, err := shared.NewSegment(start, end)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	t.Run("a point exactly on the segment has zero distance", func(t *testing.T) {
+		// closest point at t=0.5: start + 0.5*(3,4,12) = (2.5, 4, 21).
+		p := mustPoint(t, 2.5, 4, 21)
+		if got := s.DistanceToPoint(p); math.Abs(got) > 1e-9 {
+			t.Fatalf("expected distance 0, got %v", got)
+		}
+	})
+
+	t.Run("an interior point off the segment projects to a perpendicular distance", func(t *testing.T) {
+		// (4,-3,0) is perpendicular to the direction (3,4,12): offsetting
+		// the t=0.5 point by it keeps t=0.5 (no clamping) while adding a
+		// hand-verified perpendicular distance of 5.
+		p := mustPoint(t, 6.5, 1, 21)
+		if got := s.DistanceToPoint(p); math.Abs(got-5.0) > 1e-9 {
+			t.Fatalf("expected distance 5, got %v", got)
+		}
+	})
+
+	t.Run("a point beyond the end clamps to the end", func(t *testing.T) {
+		// end + direction = (7,10,39); the projection's t would be 2.0,
+		// clamped to 1, so the closest point is end itself and the
+		// distance is exactly one segment length (13).
+		p := mustPoint(t, 7, 10, 39)
+		if got := s.DistanceToPoint(p); math.Abs(got-13.0) > 1e-9 {
+			t.Fatalf("expected distance 13, got %v", got)
+		}
+	})
+
+	t.Run("a point before the start clamps to the start", func(t *testing.T) {
+		// start - direction = (-2,-2,3); the projection's t would be
+		// -1.0, clamped to 0, so the closest point is start itself and
+		// the distance is exactly one segment length (13).
+		p := mustPoint(t, -2, -2, 3)
+		if got := s.DistanceToPoint(p); math.Abs(got-13.0) > 1e-9 {
+			t.Fatalf("expected distance 13, got %v", got)
+		}
+	})
+
+	t.Run("a point whose projection lands exactly at t=0 is not clamped", func(t *testing.T) {
+		// A point offset from start by a vector perpendicular to the
+		// segment direction (4,-3,0) projects to t=0 exactly (the
+		// boundary between "before start" and "on segment"), with
+		// distance 5 either way — pins the t < 0 boundary precisely.
+		p := mustPoint(t, 5, -1, 15)
+		if got := s.DistanceToPoint(p); math.Abs(got-5.0) > 1e-9 {
+			t.Fatalf("expected distance 5, got %v", got)
+		}
+	})
+
+	t.Run("a point whose projection lands exactly at t=1 is not clamped", func(t *testing.T) {
+		// Same perpendicular offset applied at the end point: projects
+		// to t=1 exactly — pins the t > 1 boundary precisely.
+		p := mustPoint(t, 8, 3, 27)
+		if got := s.DistanceToPoint(p); math.Abs(got-5.0) > 1e-9 {
+			t.Fatalf("expected distance 5, got %v", got)
+		}
+	})
+
+	t.Run("the zero segment returns zero", func(t *testing.T) {
+		var zero shared.Segment
+		if got := zero.DistanceToPoint(mustPoint(t, 100, 100, 100)); got != 0 {
+			t.Fatalf("expected 0 for the zero segment, got %v", got)
+		}
+	})
+}
+
 func mustPoint(t *testing.T, x, y, z float64) shared.Point3D {
 	t.Helper()
 	p, err := shared.NewPoint3D(x, y, z)
