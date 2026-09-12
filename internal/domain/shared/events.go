@@ -100,15 +100,20 @@ func NewAisleRegistered(occurredAt time.Time, aisleID, zoneID, aisleCode string,
 type LocationTypeRegistered struct {
 	base
 	LocationType string  `json:"locationType"`
-	MaxWeightKg  float64 `json:"maxWeightKg"`
-	MaxVolumeM3  float64 `json:"maxVolumeM3"`
+	Role         string  `json:"role"`
+	MaxWeightKg  float64 `json:"maxWeightKg,omitempty"`
+	MaxVolumeM3  float64 `json:"maxVolumeM3,omitempty"`
 }
 
-// NewLocationTypeRegistered builds a LocationTypeRegistered event.
-func NewLocationTypeRegistered(occurredAt time.Time, locationType string, capacity Capacity) LocationTypeRegistered {
+// NewLocationTypeRegistered builds a LocationTypeRegistered event. Role is
+// additive (ADR-0016): every LocationType registered before this field
+// existed is "Storage". MaxWeightKg/MaxVolumeM3 are omitted when the type's
+// role does not require a capacity envelope.
+func NewLocationTypeRegistered(occurredAt time.Time, locationType string, role string, capacity Capacity) LocationTypeRegistered {
 	return LocationTypeRegistered{
 		base:         newBase("locationtype", "LocationTypeRegistered", occurredAt),
 		LocationType: locationType,
+		Role:         role,
 		MaxWeightKg:  capacity.MaxWeightKg(),
 		MaxVolumeM3:  capacity.MaxVolumeM3(),
 	}
@@ -138,22 +143,31 @@ func NewPlacementRuleDefined(occurredAt time.Time, ruleID, locationType, effect,
 // LocationSlotRegistered: a coded leaf slot now exists on the warehouse map.
 type LocationSlotRegistered struct {
 	base
-	LocationCode string  `json:"locationCode"`
-	AisleID      string  `json:"aisleId"`
-	ZoneID       string  `json:"zoneId"`
-	LocationType string  `json:"locationType"`
-	MaxWeightKg  float64 `json:"maxWeightKg"`
-	MaxVolumeM3  float64 `json:"maxVolumeM3"`
+	LocationCode string   `json:"locationCode"`
+	AisleID      string   `json:"aisleId"`
+	ZoneID       string   `json:"zoneId"`
+	LocationType string   `json:"locationType"`
+	Role         string   `json:"role"`
+	DockFlow     string   `json:"dockFlow,omitempty"`
+	Activities   []string `json:"activities,omitempty"`
+	MaxWeightKg  float64  `json:"maxWeightKg,omitempty"`
+	MaxVolumeM3  float64  `json:"maxVolumeM3,omitempty"`
 }
 
-// NewLocationSlotRegistered builds a LocationSlotRegistered event.
-func NewLocationSlotRegistered(occurredAt time.Time, code LocationCode, locationType string, capacity Capacity) LocationSlotRegistered {
+// NewLocationSlotRegistered builds a LocationSlotRegistered event. Role,
+// dockFlow, and activities are additive fields (ADR-0016): every slot
+// registered before they existed is "Storage" with neither dockFlow nor
+// activities set.
+func NewLocationSlotRegistered(occurredAt time.Time, code LocationCode, locationType string, role string, dockFlow string, activities []string, capacity Capacity) LocationSlotRegistered {
 	return LocationSlotRegistered{
 		base:         newBase("locationslot", "LocationSlotRegistered", occurredAt),
 		LocationCode: code.String(),
 		AisleID:      code.AisleID(),
 		ZoneID:       code.ZoneID(),
 		LocationType: locationType,
+		Role:         role,
+		DockFlow:     dockFlow,
+		Activities:   activities,
 		MaxWeightKg:  capacity.MaxWeightKg(),
 		MaxVolumeM3:  capacity.MaxVolumeM3(),
 	}

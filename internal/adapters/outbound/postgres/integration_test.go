@@ -81,7 +81,7 @@ func mustCapacity(t *testing.T, weight, volume float64) shared.Capacity {
 
 func mustLocationType(t *testing.T, name string, weight, volume float64) placement.LocationType {
 	t.Helper()
-	lt, err := placement.NewLocationType(name, mustCapacity(t, weight, volume))
+	lt, err := placement.NewLocationType(name, placement.Storage, mustCapacity(t, weight, volume))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

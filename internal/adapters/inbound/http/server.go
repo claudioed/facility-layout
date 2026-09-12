@@ -59,6 +59,7 @@ type Server struct {
 	RegisterLocationSlot      *usecases.RegisterLocationSlot
 	GetLocationSlot           *usecases.GetLocationSlot
 	GetLocationClassification *usecases.GetLocationClassification
+	ListLocationsByRole       *usecases.ListLocationsByRole
 	DecommissionLocationSlot  *usecases.DecommissionLocationSlot
 	ImportFacilityLayout      *usecases.ImportFacilityLayout
 	GetSiteLayout             *usecases.GetSiteLayout
@@ -114,6 +115,7 @@ func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handle
 		r.Get("/", s.handleListSites)
 		r.Get("/{siteCode}", s.handleGetSite)
 		r.Get("/{siteCode}/layout", s.handleGetSiteLayout)
+		r.Get("/{siteCode}/locations", s.handleListLocationsByRole)
 		r.Post("/{siteCode}/zones", s.handleRegisterZone)
 		r.Get("/{siteCode}/zones", s.handleListZones)
 	})
@@ -191,6 +193,27 @@ func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toSiteResponse(found))
+}
+
+// handleListLocationsByRole answers "where are this site's dock doors" (or
+// any other LocationRole) without walking the full nested site layout
+// (ADR-0016). The role query parameter is required.
+func (s *Server) handleListLocationsByRole(w http.ResponseWriter, r *http.Request) {
+	role, err := placement.ParseLocationRole(r.URL.Query().Get("role"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	slots, err := s.ListLocationsByRole.Execute(r.Context(), chi.URLParam(r, "siteCode"), role)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	out := make([]locationSlotResponse, 0, len(slots))
+	for _, sl := range slots {
+		out = append(out, toLocationSlotResponse(sl))
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // ---------------------------------------------------------------- zones ----
@@ -295,13 +318,26 @@ func (s *Server) handleRegisterLocationType(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	capacity, err := shared.NewCapacity(req.DefaultCapacity.MaxWeightKg, req.DefaultCapacity.MaxVolumeM3)
+	roleName := req.Role
+	if roleName == "" {
+		roleName = string(placement.Storage)
+	}
+	role, err := placement.ParseLocationRole(roleName)
 	if err != nil {
 		writeError(w, r, err)
 		return
 	}
 
-	registered, err := s.RegisterLocationType.Execute(r.Context(), req.Name, capacity)
+	capacity := shared.Capacity{}
+	if req.DefaultCapacity.MaxWeightKg != 0 || req.DefaultCapacity.MaxVolumeM3 != 0 {
+		capacity, err = shared.NewCapacity(req.DefaultCapacity.MaxWeightKg, req.DefaultCapacity.MaxVolumeM3)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+	}
+
+	registered, err := s.RegisterLocationType.Execute(r.Context(), req.Name, role, capacity)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -407,7 +443,7 @@ func (s *Server) handleRegisterLocationSlot(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	registered, err := s.RegisterLocationSlot.Execute(r.Context(), code, req.LocationType, override)
+	registered, err := s.RegisterLocationSlot.Execute(r.Context(), code, req.LocationType, override, req.DockFlow, req.Activities)
 	if err != nil {
 		writeError(w, r, err)
 		return

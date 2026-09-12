@@ -166,6 +166,7 @@ func newServer(a adapterSet, clock ports.Clock, locationMetrics ports.LocationMe
 		},
 		GetLocationSlot:           &usecases.GetLocationSlot{Slots: a.slots},
 		GetLocationClassification: &usecases.GetLocationClassification{Slots: a.slots, Zones: a.zones},
+		ListLocationsByRole:       &usecases.ListLocationsByRole{Sites: a.sites, Zones: a.zones, Slots: a.slots},
 		DecommissionLocationSlot:  &usecases.DecommissionLocationSlot{Slots: a.slots, Events: a.publisher, Clock: clock},
 		ImportFacilityLayout: &usecases.ImportFacilityLayout{
 			Sites: a.sites, Zones: a.zones, Aisles: a.aisles, Slots: a.slots,

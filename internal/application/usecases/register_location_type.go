@@ -9,7 +9,8 @@ import (
 )
 
 // RegisterLocationType defines a reusable classification of slot shape/kind
-// with a default capacity envelope.
+// with a default capacity envelope and a LocationRole (ADR-0016) saying
+// what the type is for.
 type RegisterLocationType struct {
 	LocationTypes ports.LocationTypeRepo
 	Events        ports.EventPublisher
@@ -17,7 +18,7 @@ type RegisterLocationType struct {
 }
 
 // Execute registers the location type and publishes LocationTypeRegistered.
-func (uc *RegisterLocationType) Execute(ctx context.Context, name string, defaultCapacity shared.Capacity) (placement.LocationType, error) {
+func (uc *RegisterLocationType) Execute(ctx context.Context, name string, role placement.LocationRole, defaultCapacity shared.Capacity) (placement.LocationType, error) {
 	existing, err := uc.LocationTypes.FindByName(ctx, name)
 	if err != nil {
 		return placement.LocationType{}, err
@@ -26,14 +27,14 @@ func (uc *RegisterLocationType) Execute(ctx context.Context, name string, defaul
 		return placement.LocationType{}, ErrDuplicateLocationType
 	}
 
-	lt, err := placement.NewLocationType(name, defaultCapacity)
+	lt, err := placement.NewLocationType(name, role, defaultCapacity)
 	if err != nil {
 		return placement.LocationType{}, err
 	}
 	if err := uc.LocationTypes.Save(ctx, lt); err != nil {
 		return placement.LocationType{}, err
 	}
-	if err := uc.Events.Publish(ctx, shared.NewLocationTypeRegistered(uc.Clock.Now(), lt.Name(), lt.DefaultCapacity())); err != nil {
+	if err := uc.Events.Publish(ctx, shared.NewLocationTypeRegistered(uc.Clock.Now(), lt.Name(), string(lt.Role()), lt.DefaultCapacity())); err != nil {
 		return placement.LocationType{}, err
 	}
 	return lt, nil

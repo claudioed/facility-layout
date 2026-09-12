@@ -30,7 +30,8 @@ type capacityRequest struct {
 
 type registerLocationTypeRequest struct {
 	Name            string          `json:"name"`
-	DefaultCapacity capacityRequest `json:"defaultCapacity"`
+	Role            string          `json:"role,omitempty"`
+	DefaultCapacity capacityRequest `json:"defaultCapacity,omitempty"`
 }
 
 type zonePredicateRequest struct {
@@ -49,6 +50,8 @@ type definePlacementRuleRequest struct {
 type registerLocationSlotRequest struct {
 	LocationCode     string           `json:"locationCode"`
 	LocationType     string           `json:"locationType"`
+	DockFlow         string           `json:"dockFlow,omitempty"`
+	Activities       []string         `json:"activities,omitempty"`
 	CapacityOverride *capacityRequest `json:"capacityOverride,omitempty"`
 }
 
@@ -66,6 +69,8 @@ type importRowRequest struct {
 	Level            string           `json:"level"`
 	Position         string           `json:"position"`
 	LocationType     string           `json:"locationType"`
+	DockFlow         string           `json:"dockFlow,omitempty"`
+	Activities       []string         `json:"activities,omitempty"`
 	CapacityOverride *capacityRequest `json:"capacityOverride,omitempty"`
 }
 
@@ -103,6 +108,7 @@ type capacityResponse struct {
 
 type locationTypeResponse struct {
 	Name            string           `json:"name"`
+	Role            string           `json:"role"`
 	DefaultCapacity capacityResponse `json:"defaultCapacity"`
 }
 
@@ -138,6 +144,9 @@ type locationSlotResponse struct {
 	AisleID      string              `json:"aisleId"`
 	Coordinates  coordinatesResponse `json:"coordinates"`
 	LocationType string              `json:"locationType"`
+	Role         string              `json:"role"`
+	DockFlow     string              `json:"dockFlow,omitempty"`
+	Activities   []string            `json:"activities,omitempty"`
 	Capacity     capacityResponse    `json:"capacity"`
 	Status       string              `json:"status"`
 }

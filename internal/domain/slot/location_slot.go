@@ -32,10 +32,15 @@ var (
 // LocationSlot is one coded physical slot on the warehouse map. It owns
 // whether that code exists, is active, and is legal for a given kind of
 // storage unit — never what is stored in it (that is inventory-storage's
-// Bin/StockUnit).
+// Bin/StockUnit). Since ADR-0016 a slot may instead be a functional
+// (non-storage) location — a Dock, Yard, WorkCenter, Drop, Staging, QC,
+// Consolidation, or Shipping location — denormalized from its LocationType's
+// role, carrying role-conditional FunctionalAttributes.
 type LocationSlot struct {
 	code         shared.LocationCode
 	locationType string
+	role         placement.LocationRole
+	functional   FunctionalAttributes
 	capacity     shared.Capacity
 	status       shared.Status
 }
@@ -43,14 +48,26 @@ type LocationSlot struct {
 // NewLocationSlot validates and constructs an Active LocationSlot.
 //
 // capacityOverride may be the zero Capacity, in which case the
-// LocationType's default envelope is used. rules is the full set of
-// PlacementRules the use case loaded; attrs describes the Zone the code
-// resolves to. Construction fails if the LocationType violates any
-// applicable rule, and the error names the violated rule.
+// LocationType's default envelope is used — and, per ADR-0016, capacity is
+// only required at all when locationType.Role().RequiresCapacity(); a Dock,
+// Yard, WorkCenter, QC, or Shipping location may legitimately have no
+// capacity envelope.
+//
+// functional carries the role-conditional DockFlow/Activities; it must
+// already be validated for locationType.Role() (see
+// placement.NewFunctionalAttributes) — the constructor here only checks
+// that its shape matches the type's role, since the slot never re-derives
+// the role's requirements itself.
+//
+// rules is the full set of PlacementRules the use case loaded; attrs
+// describes the Zone the code resolves to. Construction fails if the
+// LocationType violates any applicable rule, and the error names the
+// violated rule.
 func NewLocationSlot(
 	code shared.LocationCode,
 	locationType placement.LocationType,
 	capacityOverride shared.Capacity,
+	functional FunctionalAttributes,
 	attrs placement.ZoneAttributes,
 	rules placement.RuleSet,
 ) (*LocationSlot, error) {
@@ -68,7 +85,7 @@ func NewLocationSlot(
 	if capacity.IsZero() {
 		capacity = locationType.DefaultCapacity()
 	}
-	if capacity.IsZero() {
+	if locationType.Role().RequiresCapacity() && capacity.IsZero() {
 		return nil, shared.ErrInvalidMaxWeight
 	}
 
@@ -79,6 +96,8 @@ func NewLocationSlot(
 	return &LocationSlot{
 		code:         code,
 		locationType: locationType.Name(),
+		role:         locationType.Role(),
+		functional:   functional,
 		capacity:     capacity,
 		status:       shared.Active,
 	}, nil
@@ -88,8 +107,18 @@ func NewLocationSlot(
 // without re-running the registration invariants (the rule set may have
 // changed since; existing slots are not retroactively invalidated).
 // Persistence adapters only.
-func RehydrateLocationSlot(code shared.LocationCode, locationType string, capacity shared.Capacity, status shared.Status) *LocationSlot {
-	return &LocationSlot{code: code, locationType: locationType, capacity: capacity, status: status}
+func RehydrateLocationSlot(
+	code shared.LocationCode,
+	locationType string,
+	role placement.LocationRole,
+	functional FunctionalAttributes,
+	capacity shared.Capacity,
+	status shared.Status,
+) *LocationSlot {
+	return &LocationSlot{
+		code: code, locationType: locationType, role: role,
+		functional: functional, capacity: capacity, status: status,
+	}
 }
 
 // Code returns the slot's identity.
@@ -98,7 +127,16 @@ func (s *LocationSlot) Code() shared.LocationCode { return s.code }
 // LocationType returns the name of the slot's LocationType.
 func (s *LocationSlot) LocationType() string { return s.locationType }
 
-// Capacity returns the slot's effective capacity envelope.
+// Role returns what this slot is for — Storage by convention for every
+// slot registered before ADR-0016.
+func (s *LocationSlot) Role() placement.LocationRole { return s.role }
+
+// Functional returns the slot's role-conditional DockFlow/Activities. It
+// is the zero FunctionalAttributes for every role other than Dock/WorkCenter.
+func (s *LocationSlot) Functional() FunctionalAttributes { return s.functional }
+
+// Capacity returns the slot's effective capacity envelope. It is the zero
+// Capacity for a role that does not require one (ADR-0016).
 func (s *LocationSlot) Capacity() shared.Capacity { return s.capacity }
 
 // Status returns the slot's lifecycle status.

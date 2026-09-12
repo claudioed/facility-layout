@@ -72,32 +72,46 @@ func ParseEffect(value string) (Effect, error) {
 
 // LocationType is a reusable classification of physical slot shape/kind,
 // carrying the default capacity envelope slots of that kind get unless they
-// override it.
+// override it, and the LocationRole that says what the location is FOR
+// (ADR-0016).
 type LocationType struct {
 	name            string
+	role            LocationRole
 	defaultCapacity shared.Capacity
 }
 
-// NewLocationType validates and constructs a LocationType.
-func NewLocationType(name string, defaultCapacity shared.Capacity) (LocationType, error) {
+// NewLocationType validates and constructs a LocationType. defaultCapacity
+// must be strictly positive when role.RequiresCapacity() (Storage,
+// RoleStaging, Drop, Consolidation); it may be the zero Capacity for a role
+// that does not hold inventory the way storage does (Dock, Yard,
+// WorkCenter, QC, Shipping).
+func NewLocationType(name string, role LocationRole, defaultCapacity shared.Capacity) (LocationType, error) {
 	if name == "" {
 		return LocationType{}, ErrEmptyLocationTypeName
 	}
-	if defaultCapacity.IsZero() {
+	if _, err := ParseLocationRole(string(role)); err != nil {
+		return LocationType{}, err
+	}
+	if role.RequiresCapacity() && defaultCapacity.IsZero() {
 		return LocationType{}, shared.ErrInvalidMaxWeight
 	}
-	return LocationType{name: name, defaultCapacity: defaultCapacity}, nil
+	return LocationType{name: name, role: role, defaultCapacity: defaultCapacity}, nil
 }
 
 // RehydrateLocationType rebuilds a LocationType from persisted state.
-func RehydrateLocationType(name string, defaultCapacity shared.Capacity) LocationType {
-	return LocationType{name: name, defaultCapacity: defaultCapacity}
+func RehydrateLocationType(name string, role LocationRole, defaultCapacity shared.Capacity) LocationType {
+	return LocationType{name: name, role: role, defaultCapacity: defaultCapacity}
 }
 
 // Name returns the location type's name, e.g. "PalletRack".
 func (t LocationType) Name() string { return t.name }
 
+// Role returns what this location type is for — Storage by convention for
+// every type registered before ADR-0016.
+func (t LocationType) Role() LocationRole { return t.role }
+
 // DefaultCapacity returns the envelope slots of this type get by default.
+// It is the zero Capacity for a role that does not require one.
 func (t LocationType) DefaultCapacity() shared.Capacity { return t.defaultCapacity }
 
 // ZoneAttributes is the subset of a Zone a PlacementRule matches on. The
