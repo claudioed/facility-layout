@@ -390,6 +390,7 @@ paths:
                               level: "02"
                               position: B
                             locationType: PalletRack
+                            role: Storage
                             capacity:
                               maxWeightKg: 1200
                               maxVolumeM3: 2.4
@@ -717,6 +718,7 @@ paths:
                 $ref: "#/components/schemas/LocationType"
               example:
                 name: PalletRack
+                role: Storage
                 defaultCapacity:
                   maxWeightKg: 1200
                   maxVolumeM3: 2.4
@@ -747,10 +749,12 @@ paths:
                   $ref: "#/components/schemas/LocationType"
               example:
                 - name: Amnesty
+                  role: Storage
                   defaultCapacity:
                     maxWeightKg: 30
                     maxVolumeM3: 0.2
                 - name: PalletRack
+                  role: Storage
                   defaultCapacity:
                     maxWeightKg: 1200
                     maxVolumeM3: 2.4
@@ -782,6 +786,7 @@ paths:
                 $ref: "#/components/schemas/LocationType"
               example:
                 name: PalletRack
+                role: Storage
                 defaultCapacity:
                   maxWeightKg: 1200
                   maxVolumeM3: 2.4
@@ -978,6 +983,7 @@ paths:
                   level: "02"
                   position: B
                 locationType: PalletRack
+                role: Storage
                 capacity:
                   maxWeightKg: 1200
                   maxVolumeM3: 2.4
@@ -1111,6 +1117,7 @@ paths:
                   level: "02"
                   position: B
                 locationType: PalletRack
+                role: Storage
                 capacity:
                   maxWeightKg: 1200
                   maxVolumeM3: 2.4
