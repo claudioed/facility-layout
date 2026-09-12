@@ -1,0 +1,70 @@
+---
+id: register-cross-aisle
+title: "Register a connection between two aisles"
+description: "Adds a CrossAisle (ADR-0017): a zone-scoped connection between two of its aisles at a bay ordinal — physically, a walkway a picker can cross between them without walking to either aisle's end. Both aisle codes must already exist as Aisles in the named zone. A connection between the same two aisles at the same bay is rejected as a duplicate regardless of which side is named 'from'. Publishes CrossAisleRegistered."
+sidebar_label: "Register a connection between two aisles"
+hide_title: true
+hide_table_of_contents: true
+api: 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
+sidebar_class_name: "post api-method"
+info_path: api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Register a connection between two aisles"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/zones/{zoneId}/cross-aisles"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Adds a CrossAisle (ADR-0017): a zone-scoped connection between two of its aisles at a bay ordinal — physically, a walkway a picker can cross between them without walking to either aisle's end. Both aisle codes must already exist as Aisles in the named zone. A connection between the same two aisles at the same bay is rejected as a duplicate regardless of which side is named "from". Publishes CrossAisleRegistered.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./register-cross-aisle.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./register-cross-aisle.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./register-cross-aisle.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

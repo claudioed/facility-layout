@@ -146,3 +146,42 @@ func (s Segment) LengthM() float64 {
 	dz := s.end.zM - s.start.zM
 	return math.Sqrt(dx*dx + dy*dy + dz*dz)
 }
+
+// DistanceToPoint returns the shortest Euclidean distance, in metres, from
+// p to the closest point ON this segment (not the infinite line through
+// it) — used by the travel graph to place a slot's real position relative
+// to its aisle's centreline (ADR-0017). It is 0 for the zero Segment;
+// callers should check IsZero() first.
+func (s Segment) DistanceToPoint(p Point3D) float64 {
+	if s.IsZero() {
+		return 0
+	}
+	// Standard closest-point-on-segment projection: clamp the scalar
+	// projection of (p - start) onto (end - start) to [0, 1] so the
+	// closest point never falls outside the segment's two endpoints.
+	ax, ay, az := s.end.xM-s.start.xM, s.end.yM-s.start.yM, s.end.zM-s.start.zM
+	bx, by, bz := p.xM-s.start.xM, p.yM-s.start.yM, p.zM-s.start.zM
+
+	lengthSquared := ax*ax + ay*ay + az*az
+	if lengthSquared == 0 {
+		// Degenerate segment (should be unreachable: NewSegment rejects
+		// identical endpoints), fall back to distance from the start.
+		return math.Sqrt(bx*bx + by*by + bz*bz)
+	}
+
+	t := (ax*bx + ay*by + az*bz) / lengthSquared
+	if t < 0 {
+		t = 0
+	} else if t > 1 {
+		t = 1
+	}
+
+	closestX := s.start.xM + t*ax
+	closestY := s.start.yM + t*ay
+	closestZ := s.start.zM + t*az
+
+	dx := p.xM - closestX
+	dy := p.yM - closestY
+	dz := p.zM - closestZ
+	return math.Sqrt(dx*dx + dy*dy + dz*dz)
+}

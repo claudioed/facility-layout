@@ -786,6 +786,82 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /zones/{zoneId}/cross-aisles:
+    post:
+      operationId: registerCrossAisle
+      summary: Register a connection between two aisles
+      description: >
+        Adds a CrossAisle (ADR-0017): a zone-scoped connection between two of
+        its aisles at a bay ordinal — physically, a walkway a picker can
+        cross between them without walking to either aisle's end. Both aisle
+        codes must already exist as Aisles in the named zone. A connection
+        between the same two aisles at the same bay is rejected as a
+        duplicate regardless of which side is named "from". Publishes
+        CrossAisleRegistered.
+      tags: [Aisles]
+      parameters:
+        - $ref: "#/components/parameters/ZoneId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterCrossAisleRequest"
+            example:
+              fromAisle: A07
+              toAisle: A08
+              atBay: "02"
+      responses:
+        "201":
+          description: Cross-aisle registered.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CrossAisle"
+              example:
+                zoneId: WH1-STOR-AMB
+                fromAisle: A07
+                toAisle: A08
+                atBay: "02"
+                active: true
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /zones/{zoneId}/travel-graph:
+    get:
+      operationId: getZoneTravelGraph
+      summary: Get one zone's travel graph
+      description: >
+        Returns one zone's travel graph (ADR-0017) as every waypoint (aisle +
+        bay) and every directed, weighted edge between them, built fresh
+        from the zone's aisles, registered slots, and active cross-aisles.
+        An edge's metresM is derived from an aisle's real centreline
+        geometry when set, or from the zone's bay pitch otherwise (flagged
+        estimated). This context reports map TOPOLOGY only — never travel
+        time or congestion, which remain wes-work-planning's concern.
+      tags: [Layout]
+      parameters:
+        - $ref: "#/components/parameters/ZoneId"
+      responses:
+        "200":
+          description: The zone's travel graph.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TravelGraph"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
   /location-types:
     post:
       operationId: registerLocationType
@@ -1346,6 +1422,54 @@ paths:
         "500":
           $ref: "#/components/responses/InternalError"
 
+  /distance:
+    get:
+      operationId: estimateTravelDistance
+      summary: Compute the shortest travel distance between two locations
+      description: >
+        Computes the shortest travel distance, in metres, between two coded
+        locations over the pure-domain travel graph (ADR-0017): Dijkstra's
+        algorithm honouring one-way aisles and active cross-aisles. The
+        result is flagged `estimated` when any leg of the route used a
+        zone's bay-pitch fallback instead of real aisle centreline geometry.
+
+
+        Refuses (422, does not guess) when `from` and `to` are in different
+        zones — this phase's graph does not yet connect zones. This context
+        reports map TOPOLOGY only: travel TIME, congestion, and route choice
+        under load remain wes-work-planning's concern, never this one's.
+      tags: [Layout]
+      parameters:
+        - name: from
+          in: query
+          required: true
+          description: The seven-segment LocationCode to travel from.
+          schema:
+            type: string
+          example: WH1-STOR-AMB-A07-01-01-A
+        - name: to
+          in: query
+          required: true
+          description: The seven-segment LocationCode to travel to.
+          schema:
+            type: string
+          example: WH1-STOR-AMB-A09-03-01-A
+      responses:
+        "200":
+          description: The shortest travel distance and route.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TravelDistance"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
 components:
   parameters:
     SiteCode:
@@ -1774,6 +1898,123 @@ components:
           example: 7
         direction:
           $ref: "#/components/schemas/Direction"
+
+    CrossAisle:
+      type: object
+      description: >
+        A zone-scoped connection between two of its aisles at a bay ordinal
+        (ADR-0017): physically, a walkway a picker can cross between them
+        without walking to either aisle's end.
+      required: [zoneId, fromAisle, toAisle, atBay, active]
+      properties:
+        zoneId:
+          type: string
+          description: The Zone this cross-aisle is scoped to.
+          example: WH1-STOR-AMB
+        fromAisle:
+          type: string
+          description: One end's aisle code.
+          example: A07
+        toAisle:
+          type: string
+          description: The other end's aisle code.
+          example: A08
+        atBay:
+          type: string
+          description: The bay ordinal the connection is made at.
+          example: "02"
+        active:
+          type: boolean
+          description: False once the cross-aisle has been decommissioned.
+          example: true
+
+    RegisterCrossAisleRequest:
+      type: object
+      required: [fromAisle, toAisle, atBay]
+      properties:
+        fromAisle:
+          type: string
+          description: One end's aisle code. Must already exist in the named zone.
+          example: A07
+        toAisle:
+          type: string
+          description: The other end's aisle code. Must already exist in the named zone, and must differ from fromAisle.
+          example: A08
+        atBay:
+          type: string
+          description: The bay ordinal to connect them at.
+          example: "02"
+
+    TravelNode:
+      type: object
+      description: One aisle/bay waypoint on the travel graph (ADR-0017).
+      required: [aisleId, bay]
+      properties:
+        aisleId:
+          type: string
+          example: WH1-STOR-AMB-A07
+        bay:
+          type: string
+          example: "02"
+
+    TravelEdge:
+      type: object
+      description: One directed, weighted connection between two waypoints on the travel graph.
+      required: [from, to, metresM, estimated]
+      properties:
+        from:
+          $ref: "#/components/schemas/TravelNode"
+        to:
+          $ref: "#/components/schemas/TravelNode"
+        metresM:
+          type: number
+          format: double
+          description: The edge's length in metres.
+          example: 1.2
+        estimated:
+          type: boolean
+          description: True when this length came from a zone's bay pitch rather than real aisle centreline geometry.
+          example: false
+
+    TravelGraph:
+      type: object
+      description: >
+        One Zone's full travel graph (ADR-0017): every waypoint and every
+        directed edge between them, built fresh from its aisles, registered
+        slots, and active cross-aisles.
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/TravelNode"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/TravelEdge"
+
+    TravelDistance:
+      type: object
+      description: >
+        The outcome of a GET /distance query: the shortest path's total
+        length, whether any leg was estimated rather than measured, and the
+        ordered waypoints traversed (ADR-0017).
+      required: [metresM, estimated, route]
+      properties:
+        metresM:
+          type: number
+          format: double
+          description: The route's total length in metres.
+          example: 4.4
+        estimated:
+          type: boolean
+          description: True when any leg of the route used a zone's bay pitch rather than real geometry.
+          example: true
+        route:
+          type: array
+          items:
+            $ref: "#/components/schemas/TravelNode"
+          description: The ordered waypoints traversed, including both endpoints.
 
     LocationRole:
       type: string

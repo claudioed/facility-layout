@@ -12,6 +12,7 @@ import (
 
 	"github.com/claudioed/facility-layout/internal/application/usecases"
 	"github.com/claudioed/facility-layout/internal/domain/placement"
+	"github.com/claudioed/facility-layout/internal/domain/shared"
 )
 
 // tracerName is the OTel instrumentation scope for MCP tool spans.
@@ -33,6 +34,10 @@ type Deps struct {
 	ListSites *usecases.ListSites
 	// ListLocationsByRole backs list_functional_locations (ADR-0016).
 	ListLocationsByRole *usecases.ListLocationsByRole
+	// GetZoneTravelGraph backs get_zone_travel_graph (ADR-0017).
+	GetZoneTravelGraph *usecases.GetZoneTravelGraph
+	// EstimateTravelDistance backs estimate_travel_distance (ADR-0017).
+	EstimateTravelDistance *usecases.EstimateTravelDistance
 	// Reports is the client of the facility-reports REST service, backing the
 	// curated get_facility_catalog_growth_report tool. When nil, that tool is
 	// not registered (an MCP deployment without the reports service).
@@ -123,6 +128,52 @@ func (d Deps) listFunctionalLocations(ctx context.Context, in listFunctionalLoca
 	return out, nil
 }
 
+// --- get_zone_travel_graph -----------------------------------------------------
+
+type zoneTravelGraphInput struct {
+	ZoneID string `json:"zoneId" jsonschema:"the id of the zone whose travel graph to return, e.g. WH1-STOR-AMB"`
+}
+
+func (d Deps) getZoneTravelGraph(ctx context.Context, in zoneTravelGraphInput) (travelGraphDTO, error) {
+	if in.ZoneID == "" {
+		return travelGraphDTO{}, fmt.Errorf("zoneId is required")
+	}
+	view, err := d.GetZoneTravelGraph.Execute(ctx, in.ZoneID)
+	if err != nil {
+		return travelGraphDTO{}, err
+	}
+	return toTravelGraphDTO(view), nil
+}
+
+// --- estimate_travel_distance --------------------------------------------------
+
+type estimateTravelDistanceInput struct {
+	From string `json:"from" jsonschema:"the seven-segment location code to travel from, e.g. WH1-STOR-AMB-A07-01-01-A"`
+	To   string `json:"to" jsonschema:"the seven-segment location code to travel to, e.g. WH1-STOR-AMB-A09-03-01-A"`
+}
+
+func (d Deps) estimateTravelDistance(ctx context.Context, in estimateTravelDistanceInput) (travelDistanceDTO, error) {
+	if in.From == "" {
+		return travelDistanceDTO{}, fmt.Errorf("from is required")
+	}
+	if in.To == "" {
+		return travelDistanceDTO{}, fmt.Errorf("to is required")
+	}
+	from, err := shared.ParseLocationCode(in.From)
+	if err != nil {
+		return travelDistanceDTO{}, err
+	}
+	to, err := shared.ParseLocationCode(in.To)
+	if err != nil {
+		return travelDistanceDTO{}, err
+	}
+	distance, err := d.EstimateTravelDistance.Execute(ctx, from, to)
+	if err != nil {
+		return travelDistanceDTO{}, err
+	}
+	return toTravelDistanceDTO(distance), nil
+}
+
 // --- registration -------------------------------------------------------------
 
 // registerTools adds every tool to the server, each wrapped so its handler
@@ -156,6 +207,18 @@ func (d Deps) registerTools(server *mcp.Server) {
 		Description: "List a site's non-storage functional locations by role: dock doors, yard spots, work centers (pack/sort/QC/VAS stations), drop points, staging, consolidation, or shipping locations (ADR-0016). Use it to answer 'where are this site's dock doors' without walking the full site layout.",
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
 	}, d.listFunctionalLocations)
+
+	addTool(server, &mcp.Tool{
+		Name:        "get_zone_travel_graph",
+		Description: "Return one zone's travel graph as nodes (aisle/bay waypoints) and directed edges (weighted in metres, flagged estimated when derived from a zone's bay pitch rather than real aisle centreline geometry) (ADR-0017). Use it to inspect or render a zone's walkable topology.",
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+	}, d.getZoneTravelGraph)
+
+	addTool(server, &mcp.Tool{
+		Name:        "estimate_travel_distance",
+		Description: "Compute the shortest travel distance, in metres, between two coded locations within the same zone over the pure-domain travel graph (ADR-0017). Honours one-way aisles and cross-aisle connections; the result is flagged estimated when any leg used a zone's bay pitch fallback instead of real geometry. Refuses (does not guess) when the two locations are in different zones — this context's map does not yet connect zones on the travel graph. This reports MAP TOPOLOGY only, never travel time or congestion.",
+		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly},
+	}, d.estimateTravelDistance)
 
 	// Curated read-only data-product tool, registered only when the reports
 	// client is configured (ADR-0010).

@@ -8,6 +8,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/domain/site"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
 	"github.com/claudioed/facility-layout/internal/domain/structure"
+	"github.com/claudioed/facility-layout/internal/domain/travel"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
 )
 
@@ -314,4 +315,45 @@ func fromRectRequest(req rectRequest) (shared.Rect, error) {
 		return shared.Rect{}, err
 	}
 	return shared.NewRect(origin, size)
+}
+
+func toCrossAisleResponse(c *aisle.CrossAisle) crossAisleResponse {
+	return crossAisleResponse{
+		ZoneID:    c.ZoneID(),
+		FromAisle: c.FromAisle(),
+		ToAisle:   c.ToAisle(),
+		AtBay:     c.AtBay(),
+		Active:    c.IsActive(),
+	}
+}
+
+func toTravelNodeResponse(n travel.Node) travelNodeResponse {
+	return travelNodeResponse{AisleID: n.AisleID, Bay: n.Bay}
+}
+
+func toTravelGraphResponse(view *usecases.TravelGraphView) travelGraphResponse {
+	out := travelGraphResponse{
+		Nodes: make([]travelNodeResponse, 0, len(view.Nodes)),
+		Edges: make([]travelEdgeResponse, 0, len(view.Edges)),
+	}
+	for _, n := range view.Nodes {
+		out.Nodes = append(out.Nodes, toTravelNodeResponse(n))
+	}
+	for _, e := range view.Edges {
+		out.Edges = append(out.Edges, travelEdgeResponse{
+			From:      toTravelNodeResponse(e.From),
+			To:        toTravelNodeResponse(e.To),
+			MetresM:   e.MetresM,
+			Estimated: e.Estimated,
+		})
+	}
+	return out
+}
+
+func toTravelDistanceResponse(d *usecases.TravelDistance) travelDistanceResponse {
+	route := make([]travelNodeResponse, 0, len(d.Route))
+	for _, n := range d.Route {
+		route = append(route, toTravelNodeResponse(n))
+	}
+	return travelDistanceResponse{MetresM: d.MetresM, Estimated: d.Estimated, Route: route}
 }

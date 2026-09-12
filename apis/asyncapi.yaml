@@ -99,6 +99,11 @@ tags:
       Events raised by the FixedStructure aggregate (ADR-0017): site-scoped
       physical obstacles — walls, columns, offices, conveyors — drawn on
       the warehouse map. Not a location; nothing can be stowed at one.
+  - name: crossaisle
+    description: >
+      Events raised by the CrossAisle aggregate (ADR-0017): zone-scoped
+      connections between two aisles at a bay ordinal, the travel graph's
+      cross-aisle edges.
 
 servers:
   production:
@@ -154,6 +159,7 @@ channels:
           - $ref: '#/components/messages/locationGeometryUpdated'
           - $ref: '#/components/messages/aisleGeometryUpdated'
           - $ref: '#/components/messages/fixedStructureRegistered'
+          - $ref: '#/components/messages/crossAisleRegistered'
 
 components:
   schemas:
@@ -638,3 +644,39 @@ components:
                       label:
                         type: string
                         example: North wall
+
+    crossAisleRegistered:
+      name: CrossAisleRegistered
+      title: Cross-aisle registered
+      tags: [{ name: crossaisle }]
+      summary: A connection between two aisles was added to the travel graph.
+      description: >
+        Raised by `RegisterCrossAisle` (ADR-0017): a zone-scoped connection
+        between two of its aisles at a bay ordinal, letting the travel
+        graph route between aisles without walking to either end. Kafka
+        key: `zoneId`. No consumer wired today.
+      payload:
+        allOf:
+          - $ref: '#/components/schemas/envelopeBase'
+          - type: object
+            properties:
+              event_type:
+                const: com.warehouse.wms.facility-layout.crossaisle.CrossAisleRegistered
+              data:
+                allOf:
+                  - $ref: '#/components/schemas/eventDataBase'
+                  - type: object
+                    required: [zoneId, fromAisle, toAisle, atBay]
+                    properties:
+                      zoneId:
+                        type: string
+                        example: WH1-STOR-AMB
+                      fromAisle:
+                        type: string
+                        example: A07
+                      toAisle:
+                        type: string
+                        example: A08
+                      atBay:
+                        type: string
+                        example: "02"
