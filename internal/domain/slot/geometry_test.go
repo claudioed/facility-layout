@@ -81,6 +81,19 @@ func TestLocationSlotSetPickSequence(t *testing.T) {
 		}
 	})
 
+	t.Run("accepts zero as the boundary of a valid sequence", func(t *testing.T) {
+		// A CONDITIONALS_BOUNDARY mutant rewriting `sequence < 0` to
+		// `sequence <= 0` would reject exactly this value, so the
+		// negative-rejection test alone cannot catch it.
+		s := mustNewActiveSlot(t)
+		if err := s.SetPickSequence(0); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if s.PickSequence() == nil || *s.PickSequence() != 0 {
+			t.Fatalf("unexpected pick sequence %v", s.PickSequence())
+		}
+	})
+
 	t.Run("rejects a negative sequence", func(t *testing.T) {
 		s := mustNewActiveSlot(t)
 		if err := s.SetPickSequence(-1); !errors.Is(err, slot.ErrNegativePickSequence) {

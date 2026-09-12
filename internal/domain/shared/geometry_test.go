@@ -118,6 +118,28 @@ func TestNewSegment(t *testing.T) {
 		}
 	})
 
+	t.Run("length is computed from the difference of non-zero endpoints", func(t *testing.T) {
+		// A start point at the origin makes end-start and end+start
+		// identical, which would let an arithmetic-operator mutant
+		// survive undetected. Both endpoints here are non-zero on
+		// every axis, AND all three deltas (dx, dy, dz) are distinct
+		// non-zero values, so a mutant that swaps + for - between
+		// terms, or * for / within a term, changes the result.
+		off := mustPoint(t, 5, 5, 5)
+		far, err := shared.NewPoint3D(6, 7, 7)
+		if err != nil {
+			t.Fatalf("far: %v", err)
+		}
+		s, err := shared.NewSegment(off, far)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// dx=1, dy=2, dz=2 -> sqrt(1+4+4) = 3.
+		if math.Abs(s.LengthM()-3.0) > 1e-9 {
+			t.Fatalf("expected length 3 from deltas (1,2,2), got %v", s.LengthM())
+		}
+	})
+
 	t.Run("rejects a zero endpoint", func(t *testing.T) {
 		if _, err := shared.NewSegment(shared.Point3D{}, end); err == nil {
 			t.Fatal("expected an error for a zero start point")
