@@ -23,6 +23,8 @@ export function ZoneCanvas({
   grid,
   onCellClick,
   selected,
+  highlightFrom,
+  highlightTo,
 }: {
   grid: ZoneGrid;
   onCellClick?: (args: { column: ZoneGrid["columns"][number]; level: string }) => void;
@@ -30,6 +32,15 @@ export function ZoneCanvas({
    *  an accent outline so the paired "register slot" form stays visually
    *  anchored to the cell it will fill. */
   selected?: { columnIndex: number; rowIndex: number } | null;
+  /** Distance-probe mode (ADR-0017's estimate_travel_distance surfaced on
+   *  this screen): the "from" cell, drawn with its own distinct outline so
+   *  it reads apart from a placement `selected` cell or the "to" cell.
+   *  Mutually used alongside `selected` is unusual but not forbidden --
+   *  the two modes are simply never both active in LayoutDesignerScreen's
+   *  own UI at once. */
+  highlightFrom?: { columnIndex: number; rowIndex: number } | null;
+  /** The probe's "to" cell, drawn with its own distinct outline. */
+  highlightTo?: { columnIndex: number; rowIndex: number } | null;
 }) {
   const CELL_W = 92;
   const CELL_H = 56;
@@ -124,6 +135,20 @@ export function ZoneCanvas({
                   const tone = cellTone(cell);
                   const isHovered = hovered?.c === c && hovered?.r === r;
                   const isSelected = selected?.columnIndex === c && selected?.rowIndex === r;
+                  const isFrom = highlightFrom?.columnIndex === c && highlightFrom?.rowIndex === r;
+                  const isTo = highlightTo?.columnIndex === c && highlightTo?.rowIndex === r;
+                  let outlineStroke = tone.stroke;
+                  let outlineWidth = 1;
+                  if (isSelected) {
+                    outlineStroke = "#4d8dff";
+                    outlineWidth = 2.5;
+                  } else if (isFrom) {
+                    outlineStroke = "#3dd68c";
+                    outlineWidth = 2.5;
+                  } else if (isTo) {
+                    outlineStroke = "#f5b942";
+                    outlineWidth = 2.5;
+                  }
                   return (
                     <Group
                       key={`cell-${c}-${r}`}
@@ -139,8 +164,8 @@ export function ZoneCanvas({
                         height={CELL_H}
                         cornerRadius={4}
                         fill={tone.fill}
-                        stroke={isSelected ? "#4d8dff" : tone.stroke}
-                        strokeWidth={isSelected ? 2.5 : 1}
+                        stroke={outlineStroke}
+                        strokeWidth={outlineWidth}
                         dash={!cell || cell.positions.length === 0 ? [4, 3] : undefined}
                         shadowColor="#000"
                         shadowBlur={isHovered ? 6 : 0}
