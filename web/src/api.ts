@@ -48,3 +48,25 @@ export async function apiPost<TResponse>(
   if (res.status === 204) return undefined as TResponse;
   return (await res.json()) as TResponse;
 }
+
+/**
+ * GET call with the same RFC 7807 error handling as apiPost, for
+ * on-demand reads triggered by a user action (e.g. "Measure" on the
+ * distance probe) rather than useFetch's declarative load-on-mount/poll
+ * shape -- the caller wants the exact domain-error detail (e.g.
+ * "no-route-between-zones") the instant the action is taken, not a
+ * background refresh's generic FetchError.
+ */
+export async function apiGet<TResponse>(path: string): Promise<TResponse> {
+  const res = await fetch(`${FACILITY_API_BASE}${path}`);
+  if (!res.ok) {
+    let problem: ProblemDetails | null = null;
+    try {
+      problem = (await res.json()) as ProblemDetails;
+    } catch {
+      // non-JSON error body -- fall through with problem = null
+    }
+    throw new ApiError(res.status, problem, `${res.status} ${res.statusText}`);
+  }
+  return (await res.json()) as TResponse;
+}
