@@ -205,6 +205,50 @@ jobs:
   # Runs ONLY for a pull_request targeting main -- validated pre-merge,
   # never on develop pushes/PRs or on push-to-main (already validated).
   # ============================================================
+  # ============================================================
+  # CLASSIFICATION: DOCS/API DRIFT
+  # Guards against the generated "API Reference" docs
+  # (docs/docs/api-reference/rest/, produced by docusaurus-plugin-openapi-docs
+  # from apis/openapi.yaml) drifting out of sync with the spec they're
+  # supposed to mirror. Regenerates them exactly as `gen-api-docs` would and
+  # fails the PR if that produces any diff -- i.e. someone changed
+  # apis/openapi.yaml (or hand-edited the generated files) without running
+  # `npm run gen-api-docs` and committing the result. This repo's
+  # gen-api-docs/clean-api-docs scripts are already `docusaurus
+  # gen-api-docs all` -- do not pass "all" as an extra positional arg here,
+  # that produces "gen-api-docs all all" (harmless no-op today, but sloppy
+  # and liable to break on a future docusaurus-plugin-openapi-docs upgrade
+  # that stops tolerating a duplicate positional). Note this repo's own
+  # `docs/package.json` `build` script already runs `gen-api-docs all &&
+  # docusaurus build` -- this job is still needed as an explicit,
+  # fast-failing PR gate rather than relying on a full site build to
+  # surface drift.
+  # ============================================================
+  docs-api-drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: docs
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+      - run: npm ci
+      - name: Regenerate REST API docs from apis/openapi.yaml
+        run: npm run clean-api-docs && npm run gen-api-docs
+      - name: Fail if generated docs differ from what's committed
+        run: |
+          set -euo pipefail
+          if ! git diff --exit-code -- docs/api-reference/rest; then
+            echo "::error::docs/api-reference/rest is out of sync with apis/openapi.yaml." \
+                 "Run 'npm run gen-api-docs' inside docs/ and commit the result."
+            exit 1
+          fi
+
   helm-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 10
