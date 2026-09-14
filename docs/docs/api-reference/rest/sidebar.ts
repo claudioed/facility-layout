@@ -192,6 +192,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "api-reference/rest/get-location-classification",
+          label: "Get a location slot's resolved hazmat/temperature-class attributes",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "api-reference/rest/decommission-location-slot",
           label: "Permanently retire a location slot",
           className: "api-method post",
