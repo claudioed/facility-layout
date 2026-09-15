@@ -34,7 +34,7 @@
 #    --no-save plus the rm happening only inside this throwaway build layer
 #    means the committed lockfile is never read for resolution nor mutated.
 # --- ui-kit build stage (sibling dependency) ---
-FROM node:22-bookworm-slim AS uikit-build
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS uikit-build
 WORKDIR /uikit
 COPY --from=uikit . .
 # The uikit named context is a sibling CHECKOUT on the developer's machine and
@@ -47,7 +47,7 @@ RUN --mount=type=cache,target=/root/.npm \
     rm -rf node_modules package-lock.json && npm install --no-save && npm run build
 
 # --- remote build stage ---
-FROM node:22-bookworm-slim AS build
+FROM node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5 AS build
 WORKDIR /workspace/warehouse-ui-kit
 COPY --from=uikit-build /uikit/package.json ./package.json
 COPY --from=uikit-build /uikit/dist ./dist
@@ -61,7 +61,7 @@ RUN rm -f package-lock.json
 RUN npm run build
 
 # --- runtime stage ---
-FROM nginxinc/nginx-unprivileged:1.31-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine@sha256:19c132c9ab02d3b783f478743dafc7a7f42e27aa7d2bdcbec1bb1128ca8f2a07
 # apk upgrade picks up CVE fixes published to the alpine branch since the base
 # image was last rebuilt, matching warehouse-console's runtime stage. Root is
 # only needed for this one step.

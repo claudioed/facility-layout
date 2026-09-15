@@ -166,7 +166,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
       - name: Vulnerability scan (dependencies + Go stdlib)
         run: govulncheck ./...
 
@@ -233,10 +233,11 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: "20"
-      - name: Install Spectral
-        run: npm install -g @stoplight/spectral-cli
+      - name: Install Spectral (pinned via package-lock.json, npm ci)
+        working-directory: .github/tooling/spectral
+        run: npm ci
       - name: Lint OpenAPI spec
-        run: spectral lint apis/openapi.yaml --ruleset .spectral.yaml --fail-severity=warn
+        run: .github/tooling/spectral/node_modules/.bin/spectral lint apis/openapi.yaml --ruleset .spectral.yaml --fail-severity=warn
 
   # ============================================================
   # CLASSIFICATION: PACKAGING VALIDATION (Helm chart)
