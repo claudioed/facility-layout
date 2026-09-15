@@ -32,7 +32,7 @@ jobs:
         with:
           go-version-file: go.mod
           cache: false          # golangci-lint-action manages its own cache
-      - uses: golangci/golangci-lint-action@db9de0fc1a667e1a49d2291a1a042dff081d78f6 # v9
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9
         with:
           version: v2.13.1
           args: --timeout=5m
@@ -348,7 +348,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Trivy scan (SARIF, always uploaded)
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         if: always()
         with:
           image-ref: 'facility-layout:scan'
@@ -362,7 +362,7 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
       - name: "Trivy scan (blocking gate: CRITICAL/HIGH with a fix available)"
-        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: 'facility-layout:scan'
           format: 'table'
@@ -405,7 +405,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - name: Install cosign
-        uses: sigstore/cosign-installer@f713795cb21599bc4e5c4b58cbad1da852d7eeb9 # v3
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
       - name: Sign the published image (keyless, GitHub OIDC identity)
         run: |
           cosign sign --yes \
