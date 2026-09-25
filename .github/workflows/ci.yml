@@ -296,7 +296,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
-      - uses: azure/setup-helm@59b1c81c6280f5abebb1fb1bc585696daa7dfb42 # v5
+      - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
         with:
           version: v3.16.4
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
