@@ -12,6 +12,7 @@ import (
 	"github.com/claudioed/facility-layout/internal/domain/shared"
 	"github.com/claudioed/facility-layout/internal/domain/site"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
+	"github.com/claudioed/facility-layout/internal/domain/structure"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
 )
 
@@ -40,6 +41,18 @@ type AisleRepo interface {
 	ListByZone(ctx context.Context, zoneID string) ([]*aisle.Aisle, error)
 }
 
+// CrossAisleRepo persists and retrieves CrossAisle aggregates, scoped by
+// zone (ADR-0017).
+type CrossAisleRepo interface {
+	Save(ctx context.Context, c *aisle.CrossAisle) error
+	// FindByAisles returns the cross-aisle connecting fromAisle and
+	// toAisle at atBay within zoneID, or (nil, nil) when none exists —
+	// used to reject a duplicate registration regardless of which side
+	// is named "from" (the connection is symmetric).
+	FindByAisles(ctx context.Context, zoneID, fromAisle, toAisle, atBay string) (*aisle.CrossAisle, error)
+	ListByZone(ctx context.Context, zoneID string) ([]*aisle.CrossAisle, error)
+}
+
 // SlotRepo persists and retrieves LocationSlot aggregates, keyed by their
 // LocationCode (which is their identity).
 type SlotRepo interface {
@@ -62,6 +75,14 @@ type PlacementRuleRepo interface {
 	Save(ctx context.Context, r placement.PlacementRule) error
 	FindByID(ctx context.Context, id string) (*placement.PlacementRule, error)
 	List(ctx context.Context) ([]placement.PlacementRule, error)
+}
+
+// FixedStructureRepo persists and retrieves FixedStructure aggregates,
+// keyed by their opaque id (ADR-0017).
+type FixedStructureRepo interface {
+	Save(ctx context.Context, f *structure.FixedStructure) error
+	FindByID(ctx context.Context, id string) (*structure.FixedStructure, error)
+	ListBySite(ctx context.Context, siteCode string) ([]*structure.FixedStructure, error)
 }
 
 // EventPublisher publishes domain events. Adapters may log them, buffer

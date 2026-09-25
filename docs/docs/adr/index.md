@@ -65,6 +65,8 @@ updated. The history of what was believed and when is the point.
 | [0013](./0013-first-published-language-consumer.md) | inventory-storage is the first real consumer of the Published Language | Accepted |
 | [0014](./0014-rest-identity-adoption.md) | Adopt the fleet REST identity standard (static bearer keys, read/read-write scopes; warehouse-ops-agent ADR 0005) | Accepted |
 | [0015](./0015-remove-rest-mcp-auth.md) | Remove the static-bearer REST/MCP auth layer (reverts 0014 and the auth portion of 0007) | Accepted |
+| [0016](./0016-functional-location-roles.md) | Functional location roles beyond storage (Dock, Yard, WorkCenter, Drop, QC, Consolidation, Shipping) | Proposed |
+| [0017](./0017-geometry-and-travel-graph.md) | Physical geometry and a travel-distance read model | Proposed |
 
 ## The Kafka record that was deferred until the adapter existed
 

@@ -27,6 +27,8 @@ type harness struct {
 	slots         *memory.SlotRepo
 	locationTypes *memory.LocationTypeRepo
 	rules         *memory.PlacementRuleRepo
+	structures    *memory.FixedStructureRepo
+	crossAisles   *memory.CrossAisleRepo
 	publisher     *events.BufferedPublisher
 	clock         *memory.FixedClock
 	metrics       *recordingMetrics
@@ -49,6 +51,13 @@ type harness struct {
 	importLayout              *usecases.ImportFacilityLayout
 	getSiteLayout             *usecases.GetSiteLayout
 	getZoneGrid               *usecases.GetZoneGrid
+	setLocationGeometry       *usecases.SetLocationGeometry
+	setAisleGeometry          *usecases.SetAisleGeometry
+	registerFixedStructure    *usecases.RegisterFixedStructure
+	listFixedStructures       *usecases.ListFixedStructures
+	registerCrossAisle        *usecases.RegisterCrossAisle
+	getZoneTravelGraph        *usecases.GetZoneTravelGraph
+	estimateTravelDistance    *usecases.EstimateTravelDistance
 }
 
 func newHarness(t *testing.T) *harness {
@@ -62,6 +71,8 @@ func newHarness(t *testing.T) *harness {
 		slots:         memory.NewSlotRepo(),
 		locationTypes: memory.NewLocationTypeRepo(),
 		rules:         memory.NewPlacementRuleRepo(),
+		structures:    memory.NewFixedStructureRepo(),
+		crossAisles:   memory.NewCrossAisleRepo(),
 		publisher:     events.NewBufferedPublisher(),
 		clock:         memory.NewFixedClock(fixedNow),
 		metrics:       &recordingMetrics{},
@@ -91,8 +102,21 @@ func newHarness(t *testing.T) *harness {
 		LocationTypes: h.locationTypes, Rules: h.rules, Events: h.publisher, Clock: h.clock,
 		Metrics: h.metrics,
 	}
-	h.getSiteLayout = &usecases.GetSiteLayout{Sites: h.sites, Zones: h.zones, Aisles: h.aisles, Slots: h.slots}
+	h.getSiteLayout = &usecases.GetSiteLayout{Sites: h.sites, Zones: h.zones, Aisles: h.aisles, Slots: h.slots, Structures: h.structures}
 	h.getZoneGrid = &usecases.GetZoneGrid{Zones: h.zones, Aisles: h.aisles, Slots: h.slots}
+	h.setLocationGeometry = &usecases.SetLocationGeometry{Slots: h.slots, Events: h.publisher, Clock: h.clock}
+	h.setAisleGeometry = &usecases.SetAisleGeometry{Aisles: h.aisles, Events: h.publisher, Clock: h.clock}
+	h.registerFixedStructure = &usecases.RegisterFixedStructure{Sites: h.sites, Structures: h.structures, Events: h.publisher, Clock: h.clock}
+	h.listFixedStructures = &usecases.ListFixedStructures{Sites: h.sites, Structures: h.structures}
+	h.registerCrossAisle = &usecases.RegisterCrossAisle{
+		Zones: h.zones, Aisles: h.aisles, CrossAisles: h.crossAisles, Events: h.publisher, Clock: h.clock,
+	}
+	h.getZoneTravelGraph = &usecases.GetZoneTravelGraph{
+		Zones: h.zones, Aisles: h.aisles, Slots: h.slots, CrossAisles: h.crossAisles,
+	}
+	h.estimateTravelDistance = &usecases.EstimateTravelDistance{
+		Zones: h.zones, Aisles: h.aisles, Slots: h.slots, CrossAisles: h.crossAisles,
+	}
 
 	return h
 }
@@ -132,14 +156,14 @@ func (h *harness) mustRegisterAisle(zoneID, aisleCode string, sequenceHint int, 
 
 func (h *harness) mustRegisterLocationType(name string, weight, volume float64) {
 	h.t.Helper()
-	if _, err := h.registerLocationType.Execute(h.ctx(), name, mustCapacity(h.t, weight, volume)); err != nil {
+	if _, err := h.registerLocationType.Execute(h.ctx(), name, placement.Storage, mustCapacity(h.t, weight, volume)); err != nil {
 		h.t.Fatalf("seeding location type %q: %v", name, err)
 	}
 }
 
 func (h *harness) mustRegisterSlot(raw, locationType string) {
 	h.t.Helper()
-	if _, err := h.registerSlot.Execute(h.ctx(), mustCode(h.t, raw), locationType, shared.Capacity{}); err != nil {
+	if _, err := h.registerSlot.Execute(h.ctx(), mustCode(h.t, raw), locationType, shared.Capacity{}, "", nil); err != nil {
 		h.t.Fatalf("seeding slot %q: %v", raw, err)
 	}
 }

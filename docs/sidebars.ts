@@ -102,6 +102,8 @@ const sidebars: SidebarsConfig = {
         'adr/0013-first-published-language-consumer',
         'adr/0014-rest-identity-adoption',
         'adr/0015-remove-rest-mcp-auth',
+        'adr/0016-functional-location-roles',
+        'adr/0017-geometry-and-travel-graph',
       ],
     },
   ],

@@ -71,4 +71,29 @@ describe("ZoneCanvas", () => {
     const rects = screen.getAllByTestId("konva-rect");
     await expect(userEvent.click(rects[0])).resolves.not.toThrow();
   });
+
+  it("renders highlightFrom/highlightTo cells with their own distinct outline colors", () => {
+    render(
+      <ZoneCanvas
+        grid={GRID}
+        highlightFrom={{ columnIndex: 0, rowIndex: 0 }}
+        highlightTo={{ columnIndex: 1, rowIndex: 0 }}
+      />,
+    );
+    const rects = screen.getAllByTestId("konva-rect");
+    expect(rects[0]).toHaveAttribute("data-stroke", "#3dd68c");
+    expect(rects[1]).toHaveAttribute("data-stroke", "#f5b942");
+  });
+
+  it("gives selected precedence over highlightFrom/highlightTo on the same cell", () => {
+    render(
+      <ZoneCanvas
+        grid={GRID}
+        selected={{ columnIndex: 0, rowIndex: 0 }}
+        highlightFrom={{ columnIndex: 0, rowIndex: 0 }}
+      />,
+    );
+    const rects = screen.getAllByTestId("konva-rect");
+    expect(rects[0]).toHaveAttribute("data-stroke", "#4d8dff");
+  });
 });

@@ -132,6 +132,8 @@ type adapterSet struct {
 	slots         ports.SlotRepo
 	locationTypes ports.LocationTypeRepo
 	rules         ports.PlacementRuleRepo
+	structures    ports.FixedStructureRepo
+	crossAisles   ports.CrossAisleRepo
 	publisher     ports.EventPublisher
 }
 
@@ -166,6 +168,7 @@ func newServer(a adapterSet, clock ports.Clock, locationMetrics ports.LocationMe
 		},
 		GetLocationSlot:           &usecases.GetLocationSlot{Slots: a.slots},
 		GetLocationClassification: &usecases.GetLocationClassification{Slots: a.slots, Zones: a.zones},
+		ListLocationsByRole:       &usecases.ListLocationsByRole{Sites: a.sites, Zones: a.zones, Slots: a.slots},
 		DecommissionLocationSlot:  &usecases.DecommissionLocationSlot{Slots: a.slots, Events: a.publisher, Clock: clock},
 		ImportFacilityLayout: &usecases.ImportFacilityLayout{
 			Sites: a.sites, Zones: a.zones, Aisles: a.aisles, Slots: a.slots,
@@ -173,8 +176,23 @@ func newServer(a adapterSet, clock ports.Clock, locationMetrics ports.LocationMe
 			Metrics: locationMetrics,
 		},
 
-		GetSiteLayout: &usecases.GetSiteLayout{Sites: a.sites, Zones: a.zones, Aisles: a.aisles, Slots: a.slots},
+		GetSiteLayout: &usecases.GetSiteLayout{Sites: a.sites, Zones: a.zones, Aisles: a.aisles, Slots: a.slots, Structures: a.structures},
 		GetZoneGrid:   &usecases.GetZoneGrid{Zones: a.zones, Aisles: a.aisles, Slots: a.slots},
+
+		SetLocationGeometry:    &usecases.SetLocationGeometry{Slots: a.slots, Events: a.publisher, Clock: clock},
+		SetAisleGeometry:       &usecases.SetAisleGeometry{Aisles: a.aisles, Events: a.publisher, Clock: clock},
+		RegisterFixedStructure: &usecases.RegisterFixedStructure{Sites: a.sites, Structures: a.structures, Events: a.publisher, Clock: clock},
+		ListFixedStructures:    &usecases.ListFixedStructures{Sites: a.sites, Structures: a.structures},
+
+		RegisterCrossAisle: &usecases.RegisterCrossAisle{
+			Zones: a.zones, Aisles: a.aisles, CrossAisles: a.crossAisles, Events: a.publisher, Clock: clock,
+		},
+		GetZoneTravelGraph: &usecases.GetZoneTravelGraph{
+			Zones: a.zones, Aisles: a.aisles, Slots: a.slots, CrossAisles: a.crossAisles,
+		},
+		EstimateTravelDistance: &usecases.EstimateTravelDistance{
+			Zones: a.zones, Aisles: a.aisles, Slots: a.slots, CrossAisles: a.crossAisles,
+		},
 	}
 }
 
@@ -244,6 +262,8 @@ func buildAdapters(cfg publisherConfig, logger *slog.Logger) (adapterSet, func()
 			slots:         memory.NewSlotRepo(),
 			locationTypes: memory.NewLocationTypeRepo(),
 			rules:         memory.NewPlacementRuleRepo(),
+			structures:    memory.NewFixedStructureRepo(),
+			crossAisles:   memory.NewCrossAisleRepo(),
 			publisher:     pub,
 		}, closeFn, nil
 	}
@@ -275,6 +295,8 @@ func buildAdapters(cfg publisherConfig, logger *slog.Logger) (adapterSet, func()
 		slots:         postgres.NewSlotRepo(pool),
 		locationTypes: postgres.NewLocationTypeRepo(pool),
 		rules:         postgres.NewPlacementRuleRepo(pool),
+		structures:    postgres.NewFixedStructureRepo(pool),
+		crossAisles:   postgres.NewCrossAisleRepo(pool),
 		publisher:     pub,
 	}, closeFn, nil
 }

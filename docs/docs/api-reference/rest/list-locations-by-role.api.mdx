@@ -1,0 +1,70 @@
+---
+id: list-locations-by-role
+title: "List a site's locations by role"
+description: "Answers 'where are this site's dock doors' (or any other LocationRole) without walking the full nested site layout (ADR-0016). Results are ordered zone → aisle → bay → level → position, like getSiteLayout's slots."
+sidebar_label: "List a site's locations by role"
+hide_title: true
+hide_table_of_contents: true
+api: eJztW+FuG0eSfpXC4IBIypCiFeecZXA/KNmyjUiRjpRtrCMv3Jwpcjrq6Z5091CiBQL36x5gsU+4T3Ko6pnhDClZyl0Wd4tTfsQEOVNdXfXVV9XVpdvIFGiFl0a/TaNhpKTzJybhL9zhcmwURnGUokusLOjLaBiNtLtG6+Ayus7QIgiL4DPpwEmP3zhITXIFqTHWXUawYywIvQTjM7RQiya5u3AtfWZKD9dCXUk9B58hzEqlQKPzmLI8UGJJz+yMXo57g8Gzf93twxhdqbzjhY1N0WIKX4xG+Pt//hWEdCp8mool/6twgYo/FcZJWj4GJa8Q5ugn0uMJr/CNA6eMd/1LHcWRF3MXDX+Jwm/RpzgqhBU5erT0/W2kRY7RMCIVj0xKRpJkm0L4LIoji7+V0mIaDb0tcdOAFxnWtkpMivD3//hb2Lu0zoPDeY7ag5kBLtAuG6PROiC1k/SP70dx5JIMcxENbyO/LFgdb6WeR6St92hpsb/8Mup9HPT+9Onbf4lWcYQ3Ii8UPfvhzbNoFTc7scHVvIvfSrTLR22j7VDwBmZSebRg9NfV6wr6kAkPAlQlC4xmc+SiAOng+Gzc8f7EGyvmSD/RUynORKk8CJ2C0WoJllUhkXgjGUdTnJkao6OX4x/5PYvOQ2IWaEEb3XOV1FmpE1JCqEYfF6QVFhfSlE4tIRMpaAOFEgm2taVtKBUQhLrMCUGVulEcvTTJVRRHfxY2jeLog7FXR6g9WvrJmiKKo4kX82Cgfz+K4ujIaGeUTFkL+jmTRUG/f2r7cb2Al56/aTul63NWYfWJPOsKox068s7BYED/dJ3yqoO9iTKetucr6HLsVnb8rQzhSoaPKcacnKolYF74JcEgMdqj9rSEKAolg8T9Xx2tc7uNEmGtIPRJj7lrfW+mv2Lit9BDMKQwSkGhmDVe68Nb70CmqL30S3g7AeldJ5boCTDX2sF1hkxPvhIVkONiwphIvFxgzPiSDhTOhYIZsRrM5QI1XElC3gxqBJVaeg5pTeEL14QdIkdviKekpthlhKyj65dItfSK4ojY7C2hhNmMPyXG2FRq4dFFcfP8BZkmroM3EYVIpCfjOS986Zi4LFG8l8HXnYUejEy2rdBGy0QocLhA3av5iQxF7u0wSm9ycTbujU4Pe6PBi97gu97goHdIGKx29KgVPxKXN76w6IxaoANv7l+Olqht9ag1Rpwmft8itCdaqO2KB+E56vI33hSKwSq1NwxJtiqQkLTmfheDMyDAoqbsZskHTfICwYmqyZ4We4Wwrk6g7JYtfFHMEpwsigpeNbiiOJpyuHGapNRRrbONHRbyKOsW2dIxZGYikUoGHthMPUGbB+UdGWFdh5jpPdghr8QwPnofw/no6KcYJhej1692uyvRQzX8Hl7qEDOxkMYKBYkSzrGNZeD3sOjo9DCGozcnMRyPP8bwZvQxhuMPL2MYT95vLN1G5cNLn9cWS4y1MjV2Q1hAHnnq4V2I5b7DJGBFmQoXrEdX6OA7khn8/qDU94QDUpCf33cZqtmGuAMS18DnQYknOPM9b3pWzjMfMM25VPiwRlf6YbRarVPcUSsEVxt0+CiE0nLfrPMBvdhd71wohX4sKGFWBPtUyPwvFzJ0sjhW5vouT9RqvtVTU2pS7Kz09cdD4zNarOuuCfpg6esMdTC3dEC7a/upg4pGJkU2VQayJscHipctPc8FG3FirK/N9H40IRNi0piLjDHGBOWCPv0kffRp9bhdrL1y314aFWhZEttUD4/IaVX4NDyPeoHKFNgHMjWkMkftGHJ56TxMEcgAiVfLKo8tONzaKSoXNx+QqOAnMlMubt4bVeZ4+t12Imo/ulZWl/mUQTgzNhc+GkapKaec4XKpZU52H5ABElU6ucDT+su7Djen4oZ+hGteh8q2K6nM3Ircdaz47GAwWHXV/QdrtOB1SKOknMoEcvQWu0od9J93yLJ27KqpCx/FkUrOMFkmipwnPILLBJWw02V1MHXelokvKV2K+dziXHjsA+E3z6Uj9xMSjcbetViSwotnfXhHJc2pkHQmEDphsIqqrC7QusB0YUGmq8BxIoXcpKhcVRT9SLy1eAalowrVITikct93OWvExXsUR5urVnFW64lpl4qa92oTToLZNvKbUOpsxu2Ah+KlKd6qaqI6/hMzU8qvkxnMqMkQ01PBrU3wvtjtw8cmmIjoNdlbLhB2soBRMTULhJkyxoYEurtdB96cRnG0pP99Od2Oq5vTx4G3hf7+9ysW+Pvee9E/oPe+PPK9brBUMgZtiJ8bqf13L/lse2+yb9hq3QdiznToO3YeTR0dcErtpYIJNg2x12jIK0uCbELlQdrnrNSQ3e/DhMXECz0vlbAwM8YXVmpSE2/ouHwfCEZKgc8s4uOZ9VqmPjtlDYrwISDmDgRUjz7Sm3fT1p3eetY/WDUK/PHiB/0/rdbb+uPlbzDqy7XLH4e4xr9/DOQKmVxNqPFCVLbeLdHbvLtdCouDjRDaaPTcUE9GeiChPWpgAhWTVqZ4t7LtQH5+0DZLu1sUrei/OHo+eL7dXCITUd8x9Hhj7t7G4YgSs+3idRFNewNjQ5HKnQdbKoTUoANtquL4K32mwpqpwvzbe/tN9wTo+PgIXvwweAHnQQC8RC+kcn0IrTG01lioG2mB2KkuP39LSclVLfFMFFvx6EPTJlitScm0Pi2wHZT+nlNN4+TSyjv45d34bdX/mi3r7kBQ+mh08er12fjP3AGj/KvrByXamK0qQEl9xX0s6dfG1ogp9XmrfkmVbZu8mXlfuOH+Pi/j+vXpvxea+P1rYTEzpcOeWzoqkPspLvYbx/bIsb2FNEp45BK7AtZDxcoIZvIG0xiyMhe6R9WCmFLZUua5sEvqzq03nwiPc2M3WhInHbjJsNtQldSe5R7CXSXUV8JuG/ZvLi7OIYjgXk0MaRnAGrqDpOjUpEsqhqDG4EbMBSplsDzusFtgImdcKzrHh0Njw55MkpTWEo10zdGNvsolVKhtRGEjiIwzhAl1Bch6KWoZ9sMXM00X7Xj8kepHfveX8buTV/RN7+ez3uTNq5PjIbxEvaykhMsljzlfUJUWj6gl82/H1nxB/YkcIbXzosuAXzFC1agGZrjqIGzSMiFA1+DoGmG/OTh3eg8VH3Q6640C/60IIBLsaeN7s+q82pSd1GonJNY/1Nh7Pni+hgA35jqPrS0TsXC3//PZ+auoYuSDg21GnmAuNDd4FJXqC6FkOgTBlWZdV0B9QqRuOJT6SptrDVRrw0KoEmPgtvh5DZExeTlghxryzBVPJP1E0k8k/UTS/3wkfV8EbJe/D8GzReMHBy0a/7/vz25maVuebP/9XffII8oUeFNgQrEzE1KVFmPA/rwf2t7CC74bpR2UWiyEVMQLTxX9U7J4ShZPyeKfM1kQgKwWqsdvtXJElw7rxyogV75rF/rfDwatDJEYraubXYuz0uGdxX7desnRZ4am+ubow0xYtj4Q3Naja6uWUeLIoV3UM26lVdX+h/v8kMqM88MfBj8Mti9zuZOdIl8DEZq4MSb1zLApq90fV8aDMFdH1BrFES0YpDzrD/rbshnwbFyKe4uJsSnjdG+vglQm9XzdbVNLHg2sQ6+UKpV6vrcXV+BG2HIaRYGnWO/DBYGfL/kwBc5AN9WYkKjb9q2Lj0yiFTbJlkysfF6jScMRTQvQh4/1XOKomUs8rOYST5q5xPP6doBk0P2vb2aa6utcnk1sTf9VPE8PXkbNdujy9jKqLo05p4W5y3obxKOOV9CkV2DRHK4tQaJ/qS81DU01lzlhxHJvj7a1twc7YnuwIw73M8b4mpMbi+zGsLdH+w+vTjeGK4i+AiO5xBQhCQm2YAzTUqeqznBsS9KZbcnjOus5mURYy7lQwMUGsfA7At6IL7nwMFNizhqxIzZ2Uw9ddFT5yE3JZgFSpe65vpHaByvTDBiNvF5r5y2KHLwVC1Shj1oooTW9S3M+NOXa43FVkLooPSvTnj/Y24NvYW+vc3wmPa8zmWQ8ZuZ4zoxH8Syuc1l4gGjZ7YZBtbVgasWSEH/3lBx1eA3VOl+Zk9tlYGzMMfGtHZ/6IVRbcTXvNqOrCQLb8J7JpmxZZKh7vxqpOcBousf5MDxKg78xoEgybjzwCCFv6HM9xfo53HVToFAwV3QNn++bPftM48JzulS0ASVsPtY+yYTUPTPrJaXzlJ+TDJOruliaBgpxaP0w+F563CdM7IdQ5tfXE2QyL5TE6r67KqZoU9yelnoeQ7hUbEVX3MT6HdMoQZATXrpZfeHa7axUJfE0TN6S10g7IjDRcEOOSSa0dHkFEpr9IDfAZSTyqaSsH3Kmr+lyxtmY0XQZsZ1Rz4ylpGp0Ql162h5Z1Fb1hKQbSyuqCUpBqanHpmzfFfPlhWUknZUVV1A1jXYhE+JUZlxhl8OmOv357IJ4l7NiIXSyjIkNyUMW6b1qpsVQPNGmTKgLadqcZzJ3fGWIz83v9XTM528cHEq9PyF572hgc+2V3R879THdisRQCPq/y2RB61lTegThnEkkvfJjmA71VQjkpQ/kqTvsS6PxwotWiX5WoIY3xnmYBDtU0ZianLBVuYqB6B2cl1MlXYYpnNC1oZhjGAAKi8xMaWtzhndapHRkyIc5DbUGrLAjXnXOOzTqao1znUNPU6/Czuf7jmCfd7cOVE2rTyR8eqtmzDfT/85r1GhlApNyGva8y3VZYZzPhW69eSKdX+ff9UDTNIxJbZYMt+uj4/+PP1cIpSqhjA5fUlMpy+XbbVX2hRFQqvCGrb9ZWFd+n+KIijt68PZ2Khy+s2q1oq/DHwNQPZhKR2yTRsOZUG5zQKVt851xdTjehQf/SuBO3a9wuf6bBE4z0TDiknIhrCQt/mca/SF/fnGn5vUcmF62Na931Nh+9Ynvq0WKlncSfh4lCRa+9eLWwDyZoKnrX7+6iFar/wJ4ifQN
+sidebar_class_name: "get api-method"
+info_path: docs/api-reference/rest/facility-layout-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"List a site's locations by role"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/sites/{siteCode}/locations"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Answers "where are this site's dock doors" (or any other LocationRole) without walking the full nested site layout (ADR-0016). Results are ordered zone → aisle → bay → level → position, like getSiteLayout's slots.
+
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./list-locations-by-role.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./list-locations-by-role.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./list-locations-by-role.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

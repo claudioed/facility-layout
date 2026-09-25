@@ -15,7 +15,7 @@ func TestRegisterLocationSlot(t *testing.T) {
 		h := newHarness(t)
 		h.seedAmbientAisle()
 
-		s, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, shared.Capacity{})
+		s, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, shared.Capacity{}, "", nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -31,7 +31,7 @@ func TestRegisterLocationSlot(t *testing.T) {
 	t.Run("honours a capacity override", func(t *testing.T) {
 		h := newHarness(t)
 		h.seedAmbientAisle()
-		s, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, mustCapacity(t, 400, 0.9))
+		s, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, mustCapacity(t, 400, 0.9), "", nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -44,7 +44,7 @@ func TestRegisterLocationSlot(t *testing.T) {
 		h := newHarness(t)
 		h.seedAmbientAisle()
 		h.mustRegisterSlot("WH1-STOR-AMB-A07-03-02-B", placement.PalletRack)
-		_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, shared.Capacity{})
+		_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, shared.Capacity{}, "", nil)
 		assertErrorIs(t, err, usecases.ErrDuplicateLocationCode)
 	})
 
@@ -55,14 +55,14 @@ func TestRegisterLocationSlot(t *testing.T) {
 		if err := h.decommissionSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B")); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, shared.Capacity{})
+		_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), placement.PalletRack, shared.Capacity{}, "", nil)
 		assertErrorIs(t, err, usecases.ErrDuplicateLocationCode)
 	})
 
 	t.Run("rejects an unknown location type", func(t *testing.T) {
 		h := newHarness(t)
 		h.seedAmbientAisle()
-		_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), "Hovercraft", shared.Capacity{})
+		_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-AMB-A07-03-02-B"), "Hovercraft", shared.Capacity{}, "", nil)
 		assertErrorIs(t, err, usecases.ErrLocationTypeNotFound)
 	})
 }
@@ -126,7 +126,7 @@ func TestRegisterLocationSlotChainOfCustody(t *testing.T) {
 			h := newHarness(t)
 			tc.setup(t, h)
 
-			_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, tc.code), placement.PalletRack, shared.Capacity{})
+			_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, tc.code), placement.PalletRack, shared.Capacity{}, "", nil)
 			assertErrorIs(t, err, tc.wantErr)
 			h.assertNotPublished("LocationSlotRegistered")
 		})
@@ -151,14 +151,14 @@ func TestRegisterLocationSlotEnforcesPlacementRules(t *testing.T) {
 
 	t.Run("a placement satisfying every rule is accepted", func(t *testing.T) {
 		h := newHazmatHarness(t)
-		if _, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-HAZ-A01-01-01-A"), placement.PalletRack, shared.Capacity{}); err != nil {
+		if _, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-HAZ-A01-01-01-A"), placement.PalletRack, shared.Capacity{}, "", nil); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 
 	t.Run("a type outside the zone's allow-list is rejected naming the rule", func(t *testing.T) {
 		h := newHazmatHarness(t)
-		_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-HAZ-A01-01-01-A"), placement.Shelf, shared.Capacity{})
+		_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-HAZ-A01-01-01-A"), placement.Shelf, shared.Capacity{}, "", nil)
 		assertErrorIs(t, err, placement.ErrPlacementRuleViolated)
 		if !strings.Contains(err.Error(), "RULE-HAZ-ONLY-RACK") {
 			t.Fatalf("expected the violated rule to be named, got %q", err.Error())
@@ -168,7 +168,7 @@ func TestRegisterLocationSlotEnforcesPlacementRules(t *testing.T) {
 
 	t.Run("a denied type in a frozen zone is rejected naming the rule", func(t *testing.T) {
 		h := newHazmatHarness(t)
-		_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-FRZ-A02-01-01-A"), placement.Shelf, shared.Capacity{})
+		_, err := h.registerSlot.Execute(h.ctx(), mustCode(t, "WH1-STOR-FRZ-A02-01-01-A"), placement.Shelf, shared.Capacity{}, "", nil)
 		assertErrorIs(t, err, placement.ErrPlacementRuleViolated)
 		if !strings.Contains(err.Error(), "RULE-FRZ-NO-SHELF") {
 			t.Fatalf("expected the violated rule to be named, got %q", err.Error())

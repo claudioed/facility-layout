@@ -88,6 +88,18 @@ const sidebar: SidebarsConfig = {
           label: "Get one aisle",
           className: "api-method get",
         },
+        {
+          type: "doc",
+          id: "api-reference/rest/set-aisle-geometry",
+          label: "Set an aisle's travel centreline",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/register-cross-aisle",
+          label: "Register a connection between two aisles",
+          className: "api-method post",
+        },
       ],
     },
     {
@@ -174,6 +186,18 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "api-reference/rest/set-location-geometry",
+          label: "Set a location slot's physical geometry",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/get-location-classification",
+          label: "Get a location slot's resolved hazmat/temperature-class attributes",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "api-reference/rest/decommission-location-slot",
           label: "Permanently retire a location slot",
           className: "api-method post",
@@ -196,8 +220,38 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "api-reference/rest/list-locations-by-role",
+          label: "List a site's locations by role",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/register-fixed-structure",
+          label: "Register a fixed structure",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/list-fixed-structures",
+          label: "List a site's fixed structures",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
           id: "api-reference/rest/get-zone-grid",
           label: "Get a zone as a 2D renderable grid",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/get-zone-travel-graph",
+          label: "Get one zone's travel graph",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "api-reference/rest/estimate-travel-distance",
+          label: "Compute the shortest travel distance between two locations",
           className: "api-method get",
         },
       ],

@@ -1,0 +1,24 @@
+# Never ship the host's node_modules into the image.
+#
+# This is not just a size optimisation. @warehouse/ui-kit and this remote are
+# developed on macOS, so a local node_modules contains only the darwin
+# bindings for Vite 8's native dependencies (@rolldown/binding-darwin-arm64,
+# lightningcss-darwin-*). Copying that tree into a linux builder makes npm
+# consider those packages already installed, so it never fetches the
+# linux binding, and `vite build` dies with "Cannot find native binding"
+# (npm/cli#4828). The image must always resolve its own platform's binaries.
+node_modules
+dist
+
+# Build output and local noise.
+.vite
+*.log
+npm-debug.log*
+.DS_Store
+
+# Nothing here affects the built bundle.
+.git
+.gitignore
+Dockerfile
+.dockerignore
+README.md

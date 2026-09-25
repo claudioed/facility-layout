@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { apiPost, ApiError } from "./api";
+import { apiPost, apiGet, ApiError } from "./api";
 
 describe("apiPost", () => {
   const originalFetch = globalThis.fetch;
@@ -62,5 +62,57 @@ describe("apiPost", () => {
     }) as unknown as typeof fetch;
 
     await expect(apiPost("/sites", {})).rejects.toThrow("500 Internal Server Error");
+  });
+});
+
+describe("apiGet", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  it("returns the parsed JSON body on success", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ metresM: 4.4, estimated: false, route: [] }),
+    }) as unknown as typeof fetch;
+
+    const result = await apiGet("/distance?from=A&to=B");
+    expect(result).toEqual({ metresM: 4.4, estimated: false, route: [] });
+  });
+
+  it("throws ApiError with the parsed RFC 7807 problem detail on failure", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 422,
+      statusText: "Unprocessable Entity",
+      json: async () => ({
+        type: "https://errors.facility-layout.warehouse-systems.dev/no-route-between-zones",
+        title: "No route between zones",
+        status: 422,
+        detail: "from and to are in different zones",
+      }),
+    }) as unknown as typeof fetch;
+
+    await expect(apiGet("/distance?from=A&to=B")).rejects.toThrow(ApiError);
+    await expect(apiGet("/distance?from=A&to=B")).rejects.toThrow(
+      "from and to are in different zones",
+    );
+  });
+
+  it("falls back to statusText when the error body is not JSON", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      statusText: "Not Found",
+      json: async () => {
+        throw new Error("not json");
+      },
+    }) as unknown as typeof fetch;
+
+    await expect(apiGet("/distance?from=A&to=B")).rejects.toThrow("404 Not Found");
   });
 });

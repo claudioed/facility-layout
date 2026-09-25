@@ -25,15 +25,22 @@ var (
 	// ErrAlreadyDecommissioned is returned when decommissioning an aisle
 	// that is already decommissioned.
 	ErrAlreadyDecommissioned = errors.New("aisle is already decommissioned")
+	// ErrAisleDecommissioned is returned when a centreline is set on a
+	// Decommissioned aisle — a retired aisle's physical facts are frozen.
+	ErrAisleDecommissioned = errors.New("cannot update a decommissioned aisle")
 )
 
-// Aisle is a physical corridor inside a Zone.
+// Aisle is a physical corridor inside a Zone. Since ADR-0017 it may also
+// carry an optional travel centreline (a straight Segment used by the
+// travel graph as this aisle's walkable path) — it remains the zero
+// Segment until SetCentreline is called.
 type Aisle struct {
 	zoneID       string
 	aisleCode    string
 	sequenceHint int
 	direction    shared.Direction
 	status       shared.Status
+	centreline   shared.Segment
 }
 
 // NewAisle validates and constructs an Active Aisle scoped to zoneID.
@@ -65,14 +72,16 @@ func NewAisle(zoneID, aisleCode string, sequenceHint int, direction shared.Direc
 	}, nil
 }
 
-// RehydrateAisle rebuilds an Aisle from persisted state. Persistence adapters only.
-func RehydrateAisle(zoneID, aisleCode string, sequenceHint int, direction shared.Direction, status shared.Status) *Aisle {
+// RehydrateAisle rebuilds an Aisle from persisted state. centreline is the
+// zero Segment when none was ever set (ADR-0017). Persistence adapters only.
+func RehydrateAisle(zoneID, aisleCode string, sequenceHint int, direction shared.Direction, status shared.Status, centreline shared.Segment) *Aisle {
 	return &Aisle{
 		zoneID:       zoneID,
 		aisleCode:    aisleCode,
 		sequenceHint: sequenceHint,
 		direction:    direction,
 		status:       status,
+		centreline:   centreline,
 	}
 }
 
@@ -105,5 +114,23 @@ func (a *Aisle) Decommission() error {
 		return ErrAlreadyDecommissioned
 	}
 	a.status = shared.Decommissioned
+	return nil
+}
+
+// Centreline returns the aisle's travel centreline, or the zero Segment if
+// none has been set (ADR-0017).
+func (a *Aisle) Centreline() shared.Segment { return a.centreline }
+
+// SetCentreline records the aisle's straight-line travel centreline, used
+// by the travel graph as this aisle's walkable path. Rejected on a
+// Decommissioned aisle.
+func (a *Aisle) SetCentreline(centreline shared.Segment) error {
+	if a.status == shared.Decommissioned {
+		return ErrAisleDecommissioned
+	}
+	if centreline.IsZero() {
+		return errors.New("centreline must be a real segment, use NewSegment")
+	}
+	a.centreline = centreline
 	return nil
 }

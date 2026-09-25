@@ -82,9 +82,16 @@ func run() error {
 	// additionally wired to call the facility-reports REST service (ADR-0010);
 	// when it is unset the tool is simply not registered.
 	deps := inboundmcp.Deps{
-		GetSiteLayout: &usecases.GetSiteLayout{Sites: adapters.sites, Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots},
-		GetZoneGrid:   &usecases.GetZoneGrid{Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots},
-		ListSites:     &usecases.ListSites{Sites: adapters.sites},
+		GetSiteLayout:       &usecases.GetSiteLayout{Sites: adapters.sites, Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots, Structures: adapters.structures},
+		GetZoneGrid:         &usecases.GetZoneGrid{Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots},
+		ListSites:           &usecases.ListSites{Sites: adapters.sites},
+		ListLocationsByRole: &usecases.ListLocationsByRole{Sites: adapters.sites, Zones: adapters.zones, Slots: adapters.slots},
+		GetZoneTravelGraph: &usecases.GetZoneTravelGraph{
+			Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots, CrossAisles: adapters.crossAisles,
+		},
+		EstimateTravelDistance: &usecases.EstimateTravelDistance{
+			Zones: adapters.zones, Aisles: adapters.aisles, Slots: adapters.slots, CrossAisles: adapters.crossAisles,
+		},
 	}
 	if reportsURL := os.Getenv("REPORTS_BASE_URL"); reportsURL != "" {
 		deps.Reports = inboundmcp.NewReportsRESTClient(reportsURL, nil)
@@ -140,10 +147,12 @@ func healthz(w http.ResponseWriter, _ *http.Request) {
 // startup: Postgres when DATABASE_URL is set, in-memory otherwise. It mirrors
 // cmd/facility's selection so both binaries read the same map.
 type adapterSet struct {
-	sites  ports.SiteRepo
-	zones  ports.ZoneRepo
-	aisles ports.AisleRepo
-	slots  ports.SlotRepo
+	sites       ports.SiteRepo
+	zones       ports.ZoneRepo
+	aisles      ports.AisleRepo
+	slots       ports.SlotRepo
+	structures  ports.FixedStructureRepo
+	crossAisles ports.CrossAisleRepo
 }
 
 // buildAdapters wires the Postgres repos when DATABASE_URL is set, or falls
@@ -155,10 +164,12 @@ func buildAdapters(databaseURL, migrationsPath string, logger *slog.Logger) (ada
 	if databaseURL == "" {
 		logger.Info("database url not configured; using in-memory adapters")
 		return adapterSet{
-			sites:  memory.NewSiteRepo(),
-			zones:  memory.NewZoneRepo(),
-			aisles: memory.NewAisleRepo(),
-			slots:  memory.NewSlotRepo(),
+			sites:       memory.NewSiteRepo(),
+			zones:       memory.NewZoneRepo(),
+			aisles:      memory.NewAisleRepo(),
+			slots:       memory.NewSlotRepo(),
+			structures:  memory.NewFixedStructureRepo(),
+			crossAisles: memory.NewCrossAisleRepo(),
 		}, noop, nil
 	}
 
@@ -172,10 +183,12 @@ func buildAdapters(databaseURL, migrationsPath string, logger *slog.Logger) (ada
 	}
 
 	return adapterSet{
-		sites:  postgres.NewSiteRepo(pool),
-		zones:  postgres.NewZoneRepo(pool),
-		aisles: postgres.NewAisleRepo(pool),
-		slots:  postgres.NewSlotRepo(pool),
+		sites:       postgres.NewSiteRepo(pool),
+		zones:       postgres.NewZoneRepo(pool),
+		aisles:      postgres.NewAisleRepo(pool),
+		slots:       postgres.NewSlotRepo(pool),
+		structures:  postgres.NewFixedStructureRepo(pool),
+		crossAisles: postgres.NewCrossAisleRepo(pool),
 	}, pool.Close, nil
 }
 

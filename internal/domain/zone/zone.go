@@ -26,12 +26,29 @@ var (
 	// ErrAlreadyDecommissioned is returned when decommissioning a zone that
 	// is already decommissioned.
 	ErrAlreadyDecommissioned = errors.New("zone is already decommissioned")
+	// ErrInvalidPitch is returned when a bayPitchM/levelPitchM override is
+	// not strictly positive.
+	ErrInvalidPitch = errors.New("bay pitch and level pitch must both be greater than zero")
 )
+
+// DefaultBayPitchM is the fallback distance, in metres, between adjacent
+// bays on an aisle when a zone has not set its own bayPitchM (ADR-0017).
+// Used only by the travel graph's estimated (no-geometry) fallback.
+const DefaultBayPitchM = 1.2
+
+// DefaultLevelPitchM is the fallback vertical distance, in metres, between
+// adjacent levels when a zone has not set its own levelPitchM (ADR-0017).
+// Used only by the travel graph's estimated (no-geometry) fallback.
+const DefaultLevelPitchM = 1.5
 
 // Zone is a behavioral classification within a Site's area: ambient,
 // chilled, frozen, hazmat, forward-pick, reserve. It is not cosmetic — its
 // TemperatureClass and Hazmat flag are what PlacementRules match on, and
 // its identity is the Site/Area/Zone prefix of every LocationCode inside it.
+// Since ADR-0017 it may also carry optional bayPitchM/levelPitchM overrides
+// consumed only by the travel graph's estimated-distance fallback when
+// aisle/slot geometry is missing; DefaultBayPitchM/DefaultLevelPitchM apply
+// when unset.
 type Zone struct {
 	siteCode         string
 	areaCode         string
@@ -39,6 +56,8 @@ type Zone struct {
 	temperatureClass shared.TemperatureClass
 	hazmat           bool
 	status           shared.Status
+	bayPitchM        float64
+	levelPitchM      float64
 }
 
 // NewZone validates and constructs an Active Zone scoped to siteCode.
@@ -70,8 +89,10 @@ func NewZone(siteCode, areaCode, zoneCode string, temperatureClass shared.Temper
 	}, nil
 }
 
-// RehydrateZone rebuilds a Zone from persisted state. Persistence adapters only.
-func RehydrateZone(siteCode, areaCode, zoneCode string, temperatureClass shared.TemperatureClass, hazmat bool, status shared.Status) *Zone {
+// RehydrateZone rebuilds a Zone from persisted state. bayPitchM/levelPitchM
+// are 0 when never set (ADR-0017) — use BayPitchM()/LevelPitchM() to read
+// the effective value including the default. Persistence adapters only.
+func RehydrateZone(siteCode, areaCode, zoneCode string, temperatureClass shared.TemperatureClass, hazmat bool, status shared.Status, bayPitchM, levelPitchM float64) *Zone {
 	return &Zone{
 		siteCode:         siteCode,
 		areaCode:         areaCode,
@@ -79,6 +100,8 @@ func RehydrateZone(siteCode, areaCode, zoneCode string, temperatureClass shared.
 		temperatureClass: temperatureClass,
 		hazmat:           hazmat,
 		status:           status,
+		bayPitchM:        bayPitchM,
+		levelPitchM:      levelPitchM,
 	}
 }
 
@@ -125,5 +148,38 @@ func (z *Zone) Decommission() error {
 		return ErrAlreadyDecommissioned
 	}
 	z.status = shared.Decommissioned
+	return nil
+}
+
+// BayPitchM returns the distance, in metres, between adjacent bays on an
+// aisle in this zone, for use by the travel graph's estimated-distance
+// fallback (ADR-0017). Returns DefaultBayPitchM when the zone has not set
+// its own value.
+func (z *Zone) BayPitchM() float64 {
+	if z.bayPitchM <= 0 {
+		return DefaultBayPitchM
+	}
+	return z.bayPitchM
+}
+
+// LevelPitchM returns the vertical distance, in metres, between adjacent
+// levels in this zone, for use by the travel graph's estimated-distance
+// fallback (ADR-0017). Returns DefaultLevelPitchM when the zone has not
+// set its own value.
+func (z *Zone) LevelPitchM() float64 {
+	if z.levelPitchM <= 0 {
+		return DefaultLevelPitchM
+	}
+	return z.levelPitchM
+}
+
+// SetPitch records explicit bayPitchM/levelPitchM overrides for this
+// zone's travel-graph fallback (ADR-0017). Both must be strictly positive.
+func (z *Zone) SetPitch(bayPitchM, levelPitchM float64) error {
+	if bayPitchM <= 0 || levelPitchM <= 0 {
+		return ErrInvalidPitch
+	}
+	z.bayPitchM = bayPitchM
+	z.levelPitchM = levelPitchM
 	return nil
 }

@@ -26,18 +26,22 @@ func TestNewLocationType(t *testing.T) {
 	tests := []struct {
 		name     string
 		typeName string
+		role     placement.LocationRole
 		capacity shared.Capacity
 		wantErr  error
 	}{
-		{name: "a pallet rack", typeName: placement.PalletRack, capacity: capacity},
-		{name: "an amnesty location", typeName: placement.Amnesty, capacity: capacity},
-		{name: "empty name", typeName: "", capacity: capacity, wantErr: placement.ErrEmptyLocationTypeName},
-		{name: "missing default capacity", typeName: placement.Shelf, capacity: shared.Capacity{}, wantErr: shared.ErrInvalidMaxWeight},
+		{name: "a pallet rack", typeName: placement.PalletRack, role: placement.Storage, capacity: capacity},
+		{name: "an amnesty location", typeName: placement.Amnesty, role: placement.Storage, capacity: capacity},
+		{name: "empty name", typeName: "", role: placement.Storage, capacity: capacity, wantErr: placement.ErrEmptyLocationTypeName},
+		{name: "missing default capacity for a storage role", typeName: placement.Shelf, role: placement.Storage, capacity: shared.Capacity{}, wantErr: shared.ErrInvalidMaxWeight},
+		{name: "unknown role", typeName: placement.Shelf, role: "Warehouse", capacity: capacity, wantErr: placement.ErrUnknownLocationRole},
+		{name: "a dock door needs no capacity", typeName: "DockDoor", role: placement.Dock, capacity: shared.Capacity{}},
+		{name: "a work center needs no capacity", typeName: "PackStation", role: placement.WorkCenter, capacity: shared.Capacity{}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			lt, err := placement.NewLocationType(tc.typeName, tc.capacity)
+			lt, err := placement.NewLocationType(tc.typeName, tc.role, tc.capacity)
 			if tc.wantErr != nil {
 				if !errors.Is(err, tc.wantErr) {
 					t.Fatalf("expected error %v, got %v", tc.wantErr, err)
@@ -47,8 +51,8 @@ func TestNewLocationType(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if lt.Name() != tc.typeName || lt.DefaultCapacity() != tc.capacity {
-				t.Fatalf("unexpected location type %q/%v", lt.Name(), lt.DefaultCapacity())
+			if lt.Name() != tc.typeName || lt.Role() != tc.role || lt.DefaultCapacity() != tc.capacity {
+				t.Fatalf("unexpected location type %q/%q/%v", lt.Name(), lt.Role(), lt.DefaultCapacity())
 			}
 		})
 	}
@@ -56,7 +60,7 @@ func TestNewLocationType(t *testing.T) {
 
 func TestRehydrateLocationType(t *testing.T) {
 	capacity := mustCapacity(t, 50, 0.3)
-	lt := placement.RehydrateLocationType(placement.ToteWall, capacity)
+	lt := placement.RehydrateLocationType(placement.ToteWall, placement.Storage, capacity)
 	if lt.Name() != placement.ToteWall || lt.DefaultCapacity().MaxVolumeM3() != 0.3 {
 		t.Fatalf("unexpected rehydrated type %q/%v", lt.Name(), lt.DefaultCapacity())
 	}

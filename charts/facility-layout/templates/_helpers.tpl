@@ -101,3 +101,15 @@ Fully qualified name of the MCP server deployment/service (ADR-0007).
 {{- define "facility-layout.mcpFullname" -}}
 {{- include "facility-layout.fullname" . }}-mcp
 {{- end }}
+
+{{/*
+Fully qualified name of the frontend Module Federation remote deployment/service.
+
+The remote is served by its own nginx pod and reached through warehouse-infra's
+Nginx web gateway at /mfes/facility-layout/. It is deliberately a separate
+workload from the API: Kong never routes to it, and the OLTP Service must never
+select it.
+*/}}
+{{- define "facility-layout.frontendFullname" -}}
+{{- include "facility-layout.fullname" . }}-frontend
+{{- end }}

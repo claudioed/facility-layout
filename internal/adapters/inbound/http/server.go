@@ -10,12 +10,14 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/google/uuid"
 	"github.com/riandyrn/otelchi"
 	otelchimetric "github.com/riandyrn/otelchi/metric"
 
 	"github.com/claudioed/facility-layout/internal/application/usecases"
 	"github.com/claudioed/facility-layout/internal/domain/placement"
 	"github.com/claudioed/facility-layout/internal/domain/shared"
+	"github.com/claudioed/facility-layout/internal/domain/structure"
 )
 
 // DefaultServiceName is the service name reported on this adapter's spans
@@ -59,10 +61,18 @@ type Server struct {
 	RegisterLocationSlot      *usecases.RegisterLocationSlot
 	GetLocationSlot           *usecases.GetLocationSlot
 	GetLocationClassification *usecases.GetLocationClassification
+	ListLocationsByRole       *usecases.ListLocationsByRole
 	DecommissionLocationSlot  *usecases.DecommissionLocationSlot
 	ImportFacilityLayout      *usecases.ImportFacilityLayout
 	GetSiteLayout             *usecases.GetSiteLayout
 	GetZoneGrid               *usecases.GetZoneGrid
+	SetLocationGeometry       *usecases.SetLocationGeometry
+	SetAisleGeometry          *usecases.SetAisleGeometry
+	RegisterFixedStructure    *usecases.RegisterFixedStructure
+	ListFixedStructures       *usecases.ListFixedStructures
+	RegisterCrossAisle        *usecases.RegisterCrossAisle
+	GetZoneTravelGraph        *usecases.GetZoneTravelGraph
+	EstimateTravelDistance    *usecases.EstimateTravelDistance
 }
 
 // NewRouter builds the chi router for every endpoint in CLAUDE.md's REST
@@ -114,8 +124,11 @@ func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handle
 		r.Get("/", s.handleListSites)
 		r.Get("/{siteCode}", s.handleGetSite)
 		r.Get("/{siteCode}/layout", s.handleGetSiteLayout)
+		r.Get("/{siteCode}/locations", s.handleListLocationsByRole)
 		r.Post("/{siteCode}/zones", s.handleRegisterZone)
 		r.Get("/{siteCode}/zones", s.handleListZones)
+		r.Post("/{siteCode}/structures", s.handleRegisterFixedStructure)
+		r.Get("/{siteCode}/structures", s.handleListFixedStructures)
 	})
 
 	r.Route("/zones", func(r chi.Router) {
@@ -124,7 +137,12 @@ func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handle
 		r.Post("/{zoneId}/aisles", s.handleRegisterAisle)
 		r.Get("/{zoneId}/aisles", s.handleListAisles)
 		r.Get("/{zoneId}/aisles/{aisleCode}", s.handleGetAisle)
+		r.Put("/{zoneId}/aisles/{aisleCode}/geometry", s.handleSetAisleGeometry)
+		r.Post("/{zoneId}/cross-aisles", s.handleRegisterCrossAisle)
+		r.Get("/{zoneId}/travel-graph", s.handleGetZoneTravelGraph)
 	})
+
+	r.Get("/distance", s.handleEstimateTravelDistance)
 
 	r.Route("/location-types", func(r chi.Router) {
 		r.Post("/", s.handleRegisterLocationType)
@@ -144,6 +162,7 @@ func NewRouter(s *Server, logger *slog.Logger, opts ...RouterOption) http.Handle
 		r.Get("/{locationCode}", s.handleGetLocationSlot)
 		r.Get("/{locationCode}/classification", s.handleGetLocationClassification)
 		r.Post("/{locationCode}/decommission", s.handleDecommissionLocationSlot)
+		r.Put("/{locationCode}/geometry", s.handleSetLocationGeometry)
 	})
 
 	return r
@@ -191,6 +210,27 @@ func (s *Server) handleGetSite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toSiteResponse(found))
+}
+
+// handleListLocationsByRole answers "where are this site's dock doors" (or
+// any other LocationRole) without walking the full nested site layout
+// (ADR-0016). The role query parameter is required.
+func (s *Server) handleListLocationsByRole(w http.ResponseWriter, r *http.Request) {
+	role, err := placement.ParseLocationRole(r.URL.Query().Get("role"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	slots, err := s.ListLocationsByRole.Execute(r.Context(), chi.URLParam(r, "siteCode"), role)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	out := make([]locationSlotResponse, 0, len(slots))
+	for _, sl := range slots {
+		out = append(out, toLocationSlotResponse(sl))
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 // ---------------------------------------------------------------- zones ----
@@ -295,13 +335,26 @@ func (s *Server) handleRegisterLocationType(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	capacity, err := shared.NewCapacity(req.DefaultCapacity.MaxWeightKg, req.DefaultCapacity.MaxVolumeM3)
+	roleName := req.Role
+	if roleName == "" {
+		roleName = string(placement.Storage)
+	}
+	role, err := placement.ParseLocationRole(roleName)
 	if err != nil {
 		writeError(w, r, err)
 		return
 	}
 
-	registered, err := s.RegisterLocationType.Execute(r.Context(), req.Name, capacity)
+	capacity := shared.Capacity{}
+	if req.DefaultCapacity.MaxWeightKg != 0 || req.DefaultCapacity.MaxVolumeM3 != 0 {
+		capacity, err = shared.NewCapacity(req.DefaultCapacity.MaxWeightKg, req.DefaultCapacity.MaxVolumeM3)
+		if err != nil {
+			writeError(w, r, err)
+			return
+		}
+	}
+
+	registered, err := s.RegisterLocationType.Execute(r.Context(), req.Name, role, capacity)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -407,7 +460,7 @@ func (s *Server) handleRegisterLocationSlot(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	registered, err := s.RegisterLocationSlot.Execute(r.Context(), code, req.LocationType, override)
+	registered, err := s.RegisterLocationSlot.Execute(r.Context(), code, req.LocationType, override, req.DockFlow, req.Activities)
 	if err != nil {
 		writeError(w, r, err)
 		return
@@ -514,6 +567,156 @@ func (s *Server) handleGetZoneGrid(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, toZoneGridResponse(grid))
+}
+
+// --------------------------------------------------------- geometry (ADR-0017) --
+
+func (s *Server) handleSetLocationGeometry(w http.ResponseWriter, r *http.Request) {
+	code, err := shared.ParseLocationCode(chi.URLParam(r, "locationCode"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	var req setLocationGeometryRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	position, err := fromPoint3DRequest(req.Position)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	dimensions, err := fromDimensionsRequest(req.Dimensions)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	updated, err := s.SetLocationGeometry.Execute(r.Context(), code, position, dimensions, req.PickSequence)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toLocationSlotResponse(updated))
+}
+
+func (s *Server) handleSetAisleGeometry(w http.ResponseWriter, r *http.Request) {
+	aisleID := chi.URLParam(r, "zoneId") + "-" + chi.URLParam(r, "aisleCode")
+	var req setAisleGeometryRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	centreline, err := fromSegmentRequest(req.Centreline)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	updated, err := s.SetAisleGeometry.Execute(r.Context(), aisleID, centreline)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toAisleResponse(updated))
+}
+
+// handleRegisterFixedStructure registers a site-scoped physical obstacle
+// (wall, column, office, conveyor, or other). id is caller-supplied, the
+// same pattern PlacementRule ids follow: when the caller omits it, a UUID
+// is minted here.
+func (s *Server) handleRegisterFixedStructure(w http.ResponseWriter, r *http.Request) {
+	siteCode := chi.URLParam(r, "siteCode")
+	var req registerFixedStructureRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	kind, err := structure.ParseKind(req.Kind)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	footprint, err := fromRectRequest(req.Footprint)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	id := req.ID
+	if id == "" {
+		id = uuid.NewString()
+	}
+
+	registered, err := s.RegisterFixedStructure.Execute(r.Context(), id, siteCode, kind, footprint, req.Label)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	w.Header().Set("Location", "/sites/"+siteCode+"/structures/"+registered.ID())
+	writeJSON(w, http.StatusCreated, toFixedStructureResponse(registered))
+}
+
+func (s *Server) handleListFixedStructures(w http.ResponseWriter, r *http.Request) {
+	structures, err := s.ListFixedStructures.Execute(r.Context(), chi.URLParam(r, "siteCode"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	out := make([]fixedStructureResponse, 0, len(structures))
+	for _, f := range structures {
+		out = append(out, toFixedStructureResponse(f))
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// --------------------------------------------------- travel graph (ADR-0017) --
+
+// handleRegisterCrossAisle declares a zone-scoped connection between two of
+// its aisles at a bay ordinal, adding an edge to the zone's travel graph.
+func (s *Server) handleRegisterCrossAisle(w http.ResponseWriter, r *http.Request) {
+	zoneID := chi.URLParam(r, "zoneId")
+	var req registerCrossAisleRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	registered, err := s.RegisterCrossAisle.Execute(r.Context(), zoneID, req.FromAisle, req.ToAisle, req.AtBay)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, toCrossAisleResponse(registered))
+}
+
+// handleGetZoneTravelGraph returns one zone's travel graph as nodes +
+// edges, built fresh from its aisles, slots, and cross-aisles.
+func (s *Server) handleGetZoneTravelGraph(w http.ResponseWriter, r *http.Request) {
+	view, err := s.GetZoneTravelGraph.Execute(r.Context(), chi.URLParam(r, "zoneId"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toTravelGraphResponse(view))
+}
+
+// handleEstimateTravelDistance answers the shortest travel distance
+// between two coded locations over the pure-domain travel graph. A
+// malformed code is a 400 (it could never identify a location); two
+// locations in different zones is a 422 (ErrNoRouteBetweenZones) — this
+// phase's graph does not connect zones, so the endpoint refuses rather
+// than guessing.
+func (s *Server) handleEstimateTravelDistance(w http.ResponseWriter, r *http.Request) {
+	from, err := shared.ParseLocationCode(r.URL.Query().Get("from"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	to, err := shared.ParseLocationCode(r.URL.Query().Get("to"))
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	distance, err := s.EstimateTravelDistance.Execute(r.Context(), from, to)
+	if err != nil {
+		writeError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toTravelDistanceResponse(distance))
 }
 
 // --------------------------------------------------------------- writing ---

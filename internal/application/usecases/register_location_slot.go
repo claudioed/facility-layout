@@ -48,12 +48,17 @@ type RegisterLocationSlot struct {
 
 // Execute registers the slot and publishes LocationSlotRegistered.
 // capacityOverride may be the zero Capacity, meaning "use the
-// LocationType's default envelope".
+// LocationType's default envelope". dockFlow/activities are the raw
+// request strings (ADR-0016); this use case resolves the LocationType
+// first and then builds/validates FunctionalAttributes against its Role,
+// so a caller never needs a separate lookup just to know which shape to
+// build — and every attempt, including one that fails at that step, still
+// goes through the same metrics recording below.
 //
 // Every attempt — accepted or refused — is counted against the metrics
 // port before the result is returned.
-func (uc *RegisterLocationSlot) Execute(ctx context.Context, code shared.LocationCode, locationTypeName string, capacityOverride shared.Capacity) (*slot.LocationSlot, error) {
-	registered, err := uc.register(ctx, code, locationTypeName, capacityOverride)
+func (uc *RegisterLocationSlot) Execute(ctx context.Context, code shared.LocationCode, locationTypeName string, capacityOverride shared.Capacity, dockFlow string, activityNames []string) (*slot.LocationSlot, error) {
+	registered, err := uc.register(ctx, code, locationTypeName, capacityOverride, dockFlow, activityNames)
 	if uc.Metrics != nil {
 		uc.Metrics.LocationSlotRegistered(ctx, registrationOutcome(err))
 	}
@@ -75,7 +80,7 @@ func registrationOutcome(err error) string {
 
 // register is Execute's decision logic, kept separate so the outcome of the
 // whole attempt can be observed in one place.
-func (uc *RegisterLocationSlot) register(ctx context.Context, code shared.LocationCode, locationTypeName string, capacityOverride shared.Capacity) (*slot.LocationSlot, error) {
+func (uc *RegisterLocationSlot) register(ctx context.Context, code shared.LocationCode, locationTypeName string, capacityOverride shared.Capacity, dockFlow string, activityNames []string) (*slot.LocationSlot, error) {
 	existing, err := uc.Slots.FindByCode(ctx, code)
 	if err != nil {
 		return nil, err
@@ -97,23 +102,70 @@ func (uc *RegisterLocationSlot) register(ctx context.Context, code shared.Locati
 		return nil, ErrLocationTypeNotFound
 	}
 
+	functional, err := functionalAttributesFor(locationType.Role(), dockFlow, activityNames)
+	if err != nil {
+		return nil, err
+	}
+
 	rules, err := uc.Rules.List(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	s, err := slot.NewLocationSlot(code, *locationType, capacityOverride, zoneAttributes(parentZone), rules)
+	s, err := slot.NewLocationSlot(code, *locationType, capacityOverride, functional, zoneAttributes(parentZone), rules)
 	if err != nil {
 		return nil, err
 	}
 	if err := uc.Slots.Save(ctx, s); err != nil {
 		return nil, err
 	}
-	event := shared.NewLocationSlotRegistered(uc.Clock.Now(), s.Code(), s.LocationType(), s.Capacity())
+	f := s.Functional()
+	event := shared.NewLocationSlotRegistered(
+		uc.Clock.Now(), s.Code(), s.LocationType(), string(s.Role()),
+		string(f.DockFlow()), activityStrings(f.Activities()), s.Capacity(),
+	)
 	if err := uc.Events.Publish(ctx, event); err != nil {
 		return nil, err
 	}
 	return s, nil
+}
+
+// functionalAttributesFor parses the raw dockFlow/activity strings and
+// builds validated FunctionalAttributes for role, so a malformed or
+// role-inappropriate value is rejected (and counted) before any repository
+// write.
+func functionalAttributesFor(role placement.LocationRole, dockFlow string, activityNames []string) (slot.FunctionalAttributes, error) {
+	var flow slot.DockFlow
+	if dockFlow != "" {
+		parsed, err := slot.ParseDockFlow(dockFlow)
+		if err != nil {
+			return slot.FunctionalAttributes{}, err
+		}
+		flow = parsed
+	}
+	activities := make([]slot.Activity, 0, len(activityNames))
+	for _, name := range activityNames {
+		a, err := slot.ParseActivity(name)
+		if err != nil {
+			return slot.FunctionalAttributes{}, err
+		}
+		activities = append(activities, a)
+	}
+	return slot.NewFunctionalAttributes(role, flow, activities)
+}
+
+// activityStrings converts a slot's Activity set to plain strings for the
+// event payload, or nil when there are none — keeping the "activities"
+// field omitted entirely for every non-WorkCenter slot.
+func activityStrings(activities []slot.Activity) []string {
+	if len(activities) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(activities))
+	for _, a := range activities {
+		out = append(out, string(a))
+	}
+	return out
 }
 
 // resolveChain walks the LocationCode's Site/Area/Zone/Aisle segments and

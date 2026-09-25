@@ -8,15 +8,18 @@ import (
 	"github.com/claudioed/facility-layout/internal/domain/aisle"
 	"github.com/claudioed/facility-layout/internal/domain/site"
 	"github.com/claudioed/facility-layout/internal/domain/slot"
+	"github.com/claudioed/facility-layout/internal/domain/structure"
 	"github.com/claudioed/facility-layout/internal/domain/zone"
 )
 
 // SiteLayout is the readable, drawable projection of one Site's whole
-// structure: zones -> aisles -> location slots. It is a PROJECTION built by
-// querying across the aggregates, never separately stored state.
+// structure: zones -> aisles -> location slots -> fixed structures. It is
+// a PROJECTION built by querying across the aggregates, never separately
+// stored state.
 type SiteLayout struct {
-	Site  *site.Site
-	Zones []ZoneLayout
+	Site            *site.Site
+	Zones           []ZoneLayout
+	FixedStructures []*structure.FixedStructure
 }
 
 // ZoneLayout is one Zone and every Aisle inside it.
@@ -36,13 +39,17 @@ type AisleLayout struct {
 // GetSiteLayout assembles the full nested structure of one Site. Read-only:
 // no writes, no events.
 type GetSiteLayout struct {
-	Sites  ports.SiteRepo
-	Zones  ports.ZoneRepo
-	Aisles ports.AisleRepo
-	Slots  ports.SlotRepo
+	Sites      ports.SiteRepo
+	Zones      ports.ZoneRepo
+	Aisles     ports.AisleRepo
+	Slots      ports.SlotRepo
+	Structures ports.FixedStructureRepo
 }
 
-// Execute returns the site's full layout, or ErrSiteNotFound.
+// Execute returns the site's full layout, or ErrSiteNotFound. Structures
+// is optional — when it is nil (an MCP or test wiring with no
+// FixedStructureRepo configured), FixedStructures comes back empty rather
+// than the call failing.
 func (uc *GetSiteLayout) Execute(ctx context.Context, siteCode string) (*SiteLayout, error) {
 	s, err := uc.Sites.FindByCode(ctx, siteCode)
 	if err != nil {
@@ -58,7 +65,7 @@ func (uc *GetSiteLayout) Execute(ctx context.Context, siteCode string) (*SiteLay
 	}
 	sort.Slice(zones, func(i, j int) bool { return zones[i].ID() < zones[j].ID() })
 
-	layout := &SiteLayout{Site: s, Zones: make([]ZoneLayout, 0, len(zones))}
+	layout := &SiteLayout{Site: s, Zones: make([]ZoneLayout, 0, len(zones)), FixedStructures: make([]*structure.FixedStructure, 0)}
 	for _, z := range zones {
 		aisles, err := uc.Aisles.ListByZone(ctx, z.ID())
 		if err != nil {
@@ -76,6 +83,14 @@ func (uc *GetSiteLayout) Execute(ctx context.Context, siteCode string) (*SiteLay
 			zoneLayout.Aisles = append(zoneLayout.Aisles, AisleLayout{Aisle: a, Slots: slots})
 		}
 		layout.Zones = append(layout.Zones, zoneLayout)
+	}
+
+	if uc.Structures != nil {
+		structures, err := uc.Structures.ListBySite(ctx, siteCode)
+		if err != nil {
+			return nil, err
+		}
+		layout.FixedStructures = structures
 	}
 	return layout, nil
 }

@@ -49,7 +49,7 @@ func TestAnalyticsPublisher_PublishesEachEventType(t *testing.T) {
 		},
 		{
 			name:      "LocationTypeRegistered",
-			event:     shared.NewLocationTypeRegistered(at, "PalletRack", mustCapacity(t, 1000, 2)),
+			event:     shared.NewLocationTypeRegistered(at, "PalletRack", "Storage", mustCapacity(t, 1000, 2)),
 			wantType:  "com.warehouse.wms.facility-layout.locationtype.LocationTypeRegistered",
 			wantKey:   "PalletRack",
 			wantField: "locationType",
@@ -65,7 +65,7 @@ func TestAnalyticsPublisher_PublishesEachEventType(t *testing.T) {
 		},
 		{
 			name:      "LocationSlotRegistered",
-			event:     shared.NewLocationSlotRegistered(at, code, "PalletRack", mustCapacity(t, 500, 1)),
+			event:     shared.NewLocationSlotRegistered(at, code, "PalletRack", "Storage", "", nil, mustCapacity(t, 500, 1)),
 			wantType:  "com.warehouse.wms.facility-layout.locationslot.LocationSlotRegistered",
 			wantKey:   code.String(),
 			wantField: "locationCode",

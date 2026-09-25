@@ -75,7 +75,7 @@ func TestZoneDecommissionIsOneWay(t *testing.T) {
 }
 
 func TestRehydrateZonePreservesPersistedState(t *testing.T) {
-	z := zone.RehydrateZone("WH1", "STOR", "FRZ", shared.Frozen, false, shared.Decommissioned)
+	z := zone.RehydrateZone("WH1", "STOR", "FRZ", shared.Frozen, false, shared.Decommissioned, 0, 0)
 	if z.ID() != "WH1-STOR-FRZ" {
 		t.Fatalf("unexpected id %q", z.ID())
 	}
@@ -85,4 +85,65 @@ func TestRehydrateZonePreservesPersistedState(t *testing.T) {
 	if z.TemperatureClass() != shared.Frozen {
 		t.Fatalf("unexpected temperature class %q", z.TemperatureClass())
 	}
+}
+
+func TestZonePitch(t *testing.T) {
+	t.Run("defaults apply when never set", func(t *testing.T) {
+		z, err := zone.NewZone("WH1", "STOR", "AMB", shared.Ambient, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if z.BayPitchM() != zone.DefaultBayPitchM {
+			t.Fatalf("expected default bay pitch %v, got %v", zone.DefaultBayPitchM, z.BayPitchM())
+		}
+		if z.LevelPitchM() != zone.DefaultLevelPitchM {
+			t.Fatalf("expected default level pitch %v, got %v", zone.DefaultLevelPitchM, z.LevelPitchM())
+		}
+	})
+
+	t.Run("SetPitch overrides both values", func(t *testing.T) {
+		z, err := zone.NewZone("WH1", "STOR", "AMB", shared.Ambient, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := z.SetPitch(2.5, 3.0); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if z.BayPitchM() != 2.5 {
+			t.Fatalf("expected bay pitch 2.5, got %v", z.BayPitchM())
+		}
+		if z.LevelPitchM() != 3.0 {
+			t.Fatalf("expected level pitch 3.0, got %v", z.LevelPitchM())
+		}
+	})
+
+	t.Run("rejects non-positive pitch", func(t *testing.T) {
+		z, err := zone.NewZone("WH1", "STOR", "AMB", shared.Ambient, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if err := z.SetPitch(0, 1); !errors.Is(err, zone.ErrInvalidPitch) {
+			t.Fatalf("expected ErrInvalidPitch for a zero bay pitch, got %v", err)
+		}
+		if err := z.SetPitch(1, 0); !errors.Is(err, zone.ErrInvalidPitch) {
+			t.Fatalf("expected ErrInvalidPitch for a zero level pitch, got %v", err)
+		}
+		if err := z.SetPitch(-1, 1); !errors.Is(err, zone.ErrInvalidPitch) {
+			t.Fatalf("expected ErrInvalidPitch for a negative bay pitch, got %v", err)
+		}
+	})
+
+	t.Run("rehydrating with explicit pitch preserves it", func(t *testing.T) {
+		z := zone.RehydrateZone("WH1", "STOR", "AMB", shared.Ambient, false, shared.Active, 2.5, 3.0)
+		if z.BayPitchM() != 2.5 || z.LevelPitchM() != 3.0 {
+			t.Fatalf("expected pitch (2.5, 3.0), got (%v, %v)", z.BayPitchM(), z.LevelPitchM())
+		}
+	})
+
+	t.Run("rehydrating with zero pitch falls back to defaults", func(t *testing.T) {
+		z := zone.RehydrateZone("WH1", "STOR", "AMB", shared.Ambient, false, shared.Active, 0, 0)
+		if z.BayPitchM() != zone.DefaultBayPitchM || z.LevelPitchM() != zone.DefaultLevelPitchM {
+			t.Fatalf("expected default pitch, got (%v, %v)", z.BayPitchM(), z.LevelPitchM())
+		}
+	})
 }

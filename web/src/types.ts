@@ -44,12 +44,30 @@ export interface LocationCoordinates {
   position: string;
 }
 
+/** LocationRole (ADR-0016): what a location on the map is FOR. Storage is
+ *  the default and only role that existed before this ADR. */
+export type LocationRole =
+  | "Storage"
+  | "Dock"
+  | "Yard"
+  | "WorkCenter"
+  | "Drop"
+  | "Staging"
+  | "QC"
+  | "Consolidation"
+  | "Shipping";
+
 export interface LocationSlot {
   locationCode: string;
   zoneId: string;
   aisleId: string;
   coordinates: LocationCoordinates;
   locationType: string;
+  role: LocationRole;
+  /** Set only when role is Dock (Inbound | Outbound | Both). */
+  dockFlow?: string;
+  /** Set only when role is WorkCenter (Pack, Sort, QC, VAS, ...). */
+  activities?: string[];
   capacity: Capacity;
   status: string;
 }
@@ -73,6 +91,7 @@ export interface Capacity {
 /** locationTypeResponse. */
 export interface LocationType {
   name: string;
+  role: LocationRole;
   defaultCapacity: Capacity;
 }
 
@@ -154,6 +173,24 @@ export interface ZoneGrid {
   columns: GridColumn[];
   levels: string[];
   rows: GridRow[];
+}
+
+// ------------------------------------------------------- travel graph -----
+
+/** travelNodeDTO -- one aisle/bay waypoint on the travel graph (ADR-0017). */
+export interface TravelNode {
+  aisleId: string;
+  bay: string;
+}
+
+/** travelDistanceDTO -- the outcome of GET /distance: the shortest route's
+ *  total length in metres, whether any leg was graph-estimated rather than
+ *  measured from real aisle centreline geometry, and the ordered waypoints
+ *  traversed (ADR-0017). */
+export interface TravelDistance {
+  metresM: number;
+  estimated: boolean;
+  route: TravelNode[];
 }
 
 // ------------------------------------------------------- bulk import -----

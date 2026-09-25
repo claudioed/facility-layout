@@ -5,7 +5,23 @@ import { federation } from "@module-federation/vite";
 // facility-mfe: the facility-layout remote. Exposes ./App -- the shell
 // lazy-loads it at /facility/*. Also runnable standalone on :5186 for
 // local development without the shell (see main.tsx).
+// `base` is the deployment-time asset namespace. In the kind cluster this
+// remote is served by its own nginx pod behind the Nginx web gateway at
+// http://localhost/mfes/facility-layout/, so every hashed chunk and the
+// federation remoteEntry.js must resolve under that prefix -- otherwise a
+// dynamically imported chunk would request /assets/... at the shell's origin
+// root and collide with every other remote's assets.
+//
+// Kept as a plain object rather than the ({ command }) => ({...}) callback
+// form on purpose: vitest.config.ts does mergeConfig(viteConfig, ...) and Vite
+// throws "Cannot merge config in form of callback" on a function export, which
+// breaks the whole test suite. Reading the command off process.argv keeps this
+// a static object.
+const IS_BUILD = process.argv.includes("build");
+const PUBLIC_BASE = IS_BUILD ? "/mfes/facility-layout/" : "/";
+
 export default defineConfig({
+  base: PUBLIC_BASE,
   plugins: [
     react(),
     federation({

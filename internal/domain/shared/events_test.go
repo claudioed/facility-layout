@@ -45,7 +45,7 @@ func TestDomainEventsCarryNameTypeAndTime(t *testing.T) {
 		},
 		{
 			name:     "LocationTypeRegistered",
-			event:    shared.NewLocationTypeRegistered(at, "PalletRack", capacity),
+			event:    shared.NewLocationTypeRegistered(at, "PalletRack", "Storage", capacity),
 			wantName: "LocationTypeRegistered",
 			wantType: "com.warehouse.wms.facility-layout.locationtype.LocationTypeRegistered",
 		},
@@ -57,7 +57,7 @@ func TestDomainEventsCarryNameTypeAndTime(t *testing.T) {
 		},
 		{
 			name:     "LocationSlotRegistered",
-			event:    shared.NewLocationSlotRegistered(at, code, "PalletRack", capacity),
+			event:    shared.NewLocationSlotRegistered(at, code, "PalletRack", "Storage", "", nil, capacity),
 			wantName: "LocationSlotRegistered",
 			wantType: "com.warehouse.wms.facility-layout.locationslot.LocationSlotRegistered",
 		},
@@ -112,7 +112,7 @@ func TestLocationSlotRegisteredCarriesResolvedParents(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	event := shared.NewLocationSlotRegistered(at, code, "Shelf", capacity)
+	event := shared.NewLocationSlotRegistered(at, code, "Shelf", "Storage", "", nil, capacity)
 	if event.LocationCode != "WH1-STOR-FRZ-A02-01-03-A" {
 		t.Fatalf("unexpected location code: %q", event.LocationCode)
 	}

@@ -27,6 +27,7 @@ type harness struct {
 	slots         *memory.SlotRepo
 	locationTypes *memory.LocationTypeRepo
 	rules         *memory.PlacementRuleRepo
+	crossAisles   *memory.CrossAisleRepo
 	clock         *memory.FixedClock
 
 	registerSite         *usecases.RegisterSite
@@ -34,6 +35,7 @@ type harness struct {
 	registerAisle        *usecases.RegisterAisle
 	registerLocationType *usecases.RegisterLocationType
 	registerSlot         *usecases.RegisterLocationSlot
+	registerCrossAisle   *usecases.RegisterCrossAisle
 
 	deps Deps
 }
@@ -46,6 +48,7 @@ func newHarness(t *testing.T) *harness {
 	slots := memory.NewSlotRepo()
 	locationTypes := memory.NewLocationTypeRepo()
 	rules := memory.NewPlacementRuleRepo()
+	crossAisles := memory.NewCrossAisleRepo()
 	publisher := events.NewBufferedPublisher()
 	clock := memory.NewFixedClock(base)
 
@@ -57,6 +60,7 @@ func newHarness(t *testing.T) *harness {
 		slots:         slots,
 		locationTypes: locationTypes,
 		rules:         rules,
+		crossAisles:   crossAisles,
 		clock:         clock,
 
 		registerSite:         &usecases.RegisterSite{Sites: sites, Events: publisher, Clock: clock},
@@ -67,11 +71,21 @@ func newHarness(t *testing.T) *harness {
 			Sites: sites, Zones: zones, Aisles: aisles, Slots: slots,
 			LocationTypes: locationTypes, Rules: rules, Events: publisher, Clock: clock,
 		},
+		registerCrossAisle: &usecases.RegisterCrossAisle{
+			Zones: zones, Aisles: aisles, CrossAisles: crossAisles, Events: publisher, Clock: clock,
+		},
 	}
 	h.deps = Deps{
-		GetSiteLayout: &usecases.GetSiteLayout{Sites: sites, Zones: zones, Aisles: aisles, Slots: slots},
-		GetZoneGrid:   &usecases.GetZoneGrid{Zones: zones, Aisles: aisles, Slots: slots},
-		ListSites:     &usecases.ListSites{Sites: sites},
+		GetSiteLayout:       &usecases.GetSiteLayout{Sites: sites, Zones: zones, Aisles: aisles, Slots: slots},
+		GetZoneGrid:         &usecases.GetZoneGrid{Zones: zones, Aisles: aisles, Slots: slots},
+		ListSites:           &usecases.ListSites{Sites: sites},
+		ListLocationsByRole: &usecases.ListLocationsByRole{Sites: sites, Zones: zones, Slots: slots},
+		GetZoneTravelGraph: &usecases.GetZoneTravelGraph{
+			Zones: zones, Aisles: aisles, Slots: slots, CrossAisles: crossAisles,
+		},
+		EstimateTravelDistance: &usecases.EstimateTravelDistance{
+			Zones: zones, Aisles: aisles, Slots: slots, CrossAisles: crossAisles,
+		},
 	}
 	return h
 }
@@ -129,7 +143,7 @@ func (h *harness) mustRegisterLocationType(name string, weight, volume float64) 
 	if err != nil {
 		h.t.Fatalf("capacity: %v", err)
 	}
-	if _, err := h.registerLocationType.Execute(h.ctx(), name, capacity); err != nil {
+	if _, err := h.registerLocationType.Execute(h.ctx(), name, placement.Storage, capacity); err != nil {
 		h.t.Fatalf("seeding location type %q: %v", name, err)
 	}
 }
@@ -140,8 +154,30 @@ func (h *harness) mustRegisterSlot(raw, locationType string) {
 	if err != nil {
 		h.t.Fatalf("parse code %q: %v", raw, err)
 	}
-	if _, err := h.registerSlot.Execute(h.ctx(), code, locationType, shared.Capacity{}); err != nil {
+	if _, err := h.registerSlot.Execute(h.ctx(), code, locationType, shared.Capacity{}, "", nil); err != nil {
 		h.t.Fatalf("seeding slot %q: %v", raw, err)
+	}
+}
+
+// mustRegisterDockLocationType registers a role-typed LocationType with no
+// capacity envelope, for functional-location tests (ADR-0016).
+func (h *harness) mustRegisterDockLocationType(name string, role placement.LocationRole) {
+	h.t.Helper()
+	if _, err := h.registerLocationType.Execute(h.ctx(), name, role, shared.Capacity{}); err != nil {
+		h.t.Fatalf("seeding location type %q: %v", name, err)
+	}
+}
+
+// mustRegisterFunctionalSlot registers a slot with role-conditional
+// dockFlow/activities, for functional-location tests (ADR-0016).
+func (h *harness) mustRegisterFunctionalSlot(raw, locationType, dockFlow string, activities []string) {
+	h.t.Helper()
+	code, err := shared.ParseLocationCode(raw)
+	if err != nil {
+		h.t.Fatalf("parse code %q: %v", raw, err)
+	}
+	if _, err := h.registerSlot.Execute(h.ctx(), code, locationType, shared.Capacity{}, dockFlow, activities); err != nil {
+		h.t.Fatalf("seeding functional slot %q: %v", raw, err)
 	}
 }
 
@@ -323,4 +359,166 @@ func TestGetZoneGrid(t *testing.T) {
 			tc.assert(t, out)
 		})
 	}
+}
+
+func TestListFunctionalLocations(t *testing.T) {
+	seedFunctional := func(t *testing.T) *harness {
+		t.Helper()
+		h := newHarness(t)
+		h.mustRegisterSite("WH1", "Fulfilment Centre One")
+		h.mustRegisterZone("WH1", "DOCK", "OB", shared.Ambient, false)
+		h.mustRegisterAisle("WH1-DOCK-OB", "D01", 1, shared.TwoWay)
+		h.mustRegisterDockLocationType("DockDoor", placement.Dock)
+		h.mustRegisterFunctionalSlot("WH1-DOCK-OB-D01-01-01-A", "DockDoor", "Outbound", nil)
+		h.mustRegisterFunctionalSlot("WH1-DOCK-OB-D01-01-02-A", "DockDoor", "Inbound", nil)
+
+		h.mustRegisterZone("WH1", "STOR", "AMB", shared.Ambient, false)
+		h.mustRegisterAisle("WH1-STOR-AMB", "A07", 7, shared.TwoWay)
+		h.mustRegisterLocationType(placement.PalletRack, 1200, 2.4)
+		h.mustRegisterSlot("WH1-STOR-AMB-A07-03-02-B", placement.PalletRack)
+		return h
+	}
+
+	t.Run("empty siteCode rejected", func(t *testing.T) {
+		h := newHarness(t)
+		if _, err := h.deps.listFunctionalLocations(h.ctx(), listFunctionalLocationsInput{Role: "Dock"}); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("unknown role rejected", func(t *testing.T) {
+		h := seedFunctional(t)
+		if _, err := h.deps.listFunctionalLocations(h.ctx(), listFunctionalLocationsInput{SiteCode: "WH1", Role: "Warehouse"}); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("unknown site rejected", func(t *testing.T) {
+		h := seedFunctional(t)
+		if _, err := h.deps.listFunctionalLocations(h.ctx(), listFunctionalLocationsInput{SiteCode: "NOPE", Role: "Dock"}); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("returns only the matching role's locations, ordered by coordinate", func(t *testing.T) {
+		h := seedFunctional(t)
+		out, err := h.deps.listFunctionalLocations(h.ctx(), listFunctionalLocationsInput{SiteCode: "WH1", Role: "Dock"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(out.Locations) != 2 {
+			t.Fatalf("expected 2 dock locations, got %d: %+v", len(out.Locations), out.Locations)
+		}
+		if out.Locations[0].LocationCode != "WH1-DOCK-OB-D01-01-01-A" || out.Locations[0].DockFlow != "Outbound" {
+			t.Fatalf("unexpected first location %+v", out.Locations[0])
+		}
+		if out.Locations[1].LocationCode != "WH1-DOCK-OB-D01-01-02-A" || out.Locations[1].DockFlow != "Inbound" {
+			t.Fatalf("unexpected second location %+v", out.Locations[1])
+		}
+		for _, loc := range out.Locations {
+			if loc.Role != "Dock" {
+				t.Fatalf("expected role Dock, got %q", loc.Role)
+			}
+			if len(loc.Activities) != 0 {
+				t.Fatalf("expected no activities on a Dock location, got %v", loc.Activities)
+			}
+		}
+	})
+
+	t.Run("a role with no matching locations returns an empty, non-nil list", func(t *testing.T) {
+		h := seedFunctional(t)
+		out, err := h.deps.listFunctionalLocations(h.ctx(), listFunctionalLocationsInput{SiteCode: "WH1", Role: "Yard"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out.Locations == nil || len(out.Locations) != 0 {
+			t.Fatalf("expected an empty, non-nil list, got %+v", out.Locations)
+		}
+	})
+}
+
+func TestGetZoneTravelGraphTool(t *testing.T) {
+	h := newHarness(t)
+	h.mustRegisterSite("WH1", "Fulfilment Centre One")
+	h.mustRegisterZone("WH1", "STOR", "AMB", shared.Ambient, false)
+	h.mustRegisterAisle("WH1-STOR-AMB", "A07", 7, shared.TwoWay)
+	h.mustRegisterAisle("WH1-STOR-AMB", "A08", 8, shared.TwoWay)
+	h.mustRegisterLocationType(placement.PalletRack, 1200, 2.4)
+	h.mustRegisterSlot("WH1-STOR-AMB-A07-01-01-A", placement.PalletRack)
+	h.mustRegisterSlot("WH1-STOR-AMB-A07-02-01-A", placement.PalletRack)
+	h.mustRegisterSlot("WH1-STOR-AMB-A08-01-01-A", placement.PalletRack)
+	if _, err := h.registerCrossAisle.Execute(h.ctx(), "WH1-STOR-AMB", "A07", "A08", "01"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	t.Run("empty zoneId rejected", func(t *testing.T) {
+		if _, err := h.deps.getZoneTravelGraph(h.ctx(), zoneTravelGraphInput{}); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("unknown zone rejected", func(t *testing.T) {
+		if _, err := h.deps.getZoneTravelGraph(h.ctx(), zoneTravelGraphInput{ZoneID: "WH1-NOPE-XXX"}); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("returns every node and edge", func(t *testing.T) {
+		out, err := h.deps.getZoneTravelGraph(h.ctx(), zoneTravelGraphInput{ZoneID: "WH1-STOR-AMB"})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(out.Nodes) != 3 {
+			t.Fatalf("expected 3 nodes, got %d: %+v", len(out.Nodes), out.Nodes)
+		}
+		if len(out.Edges) == 0 {
+			t.Fatal("expected at least one edge")
+		}
+	})
+}
+
+func TestEstimateTravelDistanceTool(t *testing.T) {
+	h := newHarness(t)
+	h.mustRegisterSite("WH1", "Fulfilment Centre One")
+	h.mustRegisterZone("WH1", "STOR", "AMB", shared.Ambient, false)
+	h.mustRegisterAisle("WH1-STOR-AMB", "A07", 7, shared.TwoWay)
+	h.mustRegisterLocationType(placement.PalletRack, 1200, 2.4)
+	h.mustRegisterSlot("WH1-STOR-AMB-A07-01-01-A", placement.PalletRack)
+	h.mustRegisterSlot("WH1-STOR-AMB-A07-02-01-A", placement.PalletRack)
+
+	t.Run("empty from rejected", func(t *testing.T) {
+		if _, err := h.deps.estimateTravelDistance(h.ctx(), estimateTravelDistanceInput{To: "WH1-STOR-AMB-A07-02-01-A"}); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("empty to rejected", func(t *testing.T) {
+		if _, err := h.deps.estimateTravelDistance(h.ctx(), estimateTravelDistanceInput{From: "WH1-STOR-AMB-A07-01-01-A"}); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("malformed code rejected", func(t *testing.T) {
+		if _, err := h.deps.estimateTravelDistance(h.ctx(), estimateTravelDistanceInput{From: "not-a-code", To: "WH1-STOR-AMB-A07-02-01-A"}); err == nil {
+			t.Fatal("expected error, got nil")
+		}
+	})
+
+	t.Run("computes the shortest distance", func(t *testing.T) {
+		out, err := h.deps.estimateTravelDistance(h.ctx(), estimateTravelDistanceInput{
+			From: "WH1-STOR-AMB-A07-01-01-A", To: "WH1-STOR-AMB-A07-02-01-A",
+		})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if out.MetresM != 1.2 {
+			t.Fatalf("expected 1.2m (1 gap at the default bay pitch), got %v", out.MetresM)
+		}
+		if !out.Estimated {
+			t.Fatal("expected Estimated=true: no aisle geometry was ever set")
+		}
+		if len(out.Route) != 2 {
+			t.Fatalf("expected a 2-waypoint route, got %d", len(out.Route))
+		}
+	})
 }

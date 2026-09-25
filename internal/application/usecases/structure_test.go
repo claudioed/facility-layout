@@ -202,7 +202,7 @@ func TestListAisles(t *testing.T) {
 func TestRegisterLocationType(t *testing.T) {
 	t.Run("registers a location type", func(t *testing.T) {
 		h := newHarness(t)
-		lt, err := h.registerLocationType.Execute(h.ctx(), placement.PalletRack, mustCapacity(t, 1200, 2.4))
+		lt, err := h.registerLocationType.Execute(h.ctx(), placement.PalletRack, placement.Storage, mustCapacity(t, 1200, 2.4))
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -215,13 +215,13 @@ func TestRegisterLocationType(t *testing.T) {
 	t.Run("rejects a duplicate name", func(t *testing.T) {
 		h := newHarness(t)
 		h.mustRegisterLocationType(placement.PalletRack, 1200, 2.4)
-		_, err := h.registerLocationType.Execute(h.ctx(), placement.PalletRack, mustCapacity(t, 900, 2))
+		_, err := h.registerLocationType.Execute(h.ctx(), placement.PalletRack, placement.Storage, mustCapacity(t, 900, 2))
 		assertErrorIs(t, err, usecases.ErrDuplicateLocationType)
 	})
 
 	t.Run("rejects an empty name", func(t *testing.T) {
 		h := newHarness(t)
-		_, err := h.registerLocationType.Execute(h.ctx(), "", mustCapacity(t, 1200, 2.4))
+		_, err := h.registerLocationType.Execute(h.ctx(), "", placement.Storage, mustCapacity(t, 1200, 2.4))
 		assertErrorIs(t, err, placement.ErrEmptyLocationTypeName)
 	})
 

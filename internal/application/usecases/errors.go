@@ -44,6 +44,9 @@ var (
 	ErrDuplicateLocationType = errors.New("a location type with this name already exists")
 	// ErrDuplicatePlacementRule is returned when a rule id is already taken.
 	ErrDuplicatePlacementRule = errors.New("a placement rule with this id already exists")
+	// ErrDuplicateFixedStructure is returned when a fixed structure id is
+	// already taken.
+	ErrDuplicateFixedStructure = errors.New("a fixed structure with this id already exists")
 	// ErrDuplicateLocationCode is returned when a location code is already
 	// registered — including when the existing slot is Decommissioned,
 	// because decommission is one-way and a retired code is never
@@ -52,4 +55,17 @@ var (
 
 	// ErrEmptyImport is returned when a bulk import carries no rows.
 	ErrEmptyImport = errors.New("facility layout import must contain at least one row")
+
+	// ErrCrossAisleAisleMismatch is returned when a cross-aisle names an
+	// aisle that does not belong to the zone it is being registered
+	// against.
+	ErrCrossAisleAisleMismatch = errors.New("cross-aisle aisles must both belong to the named zone")
+	// ErrDuplicateCrossAisle is returned when a cross-aisle connecting
+	// the same two aisles at the same bay already exists in the zone.
+	ErrDuplicateCrossAisle = errors.New("a cross-aisle between these aisles at this bay already exists")
+	// ErrNoRouteBetweenZones is returned when a distance is requested
+	// between two location codes in different zones — this phase does
+	// not connect zones on the travel graph, so a cross-zone request is
+	// refused rather than guessed at.
+	ErrNoRouteBetweenZones = errors.New("no route: the two locations are in different zones, which this context does not yet connect on the travel graph")
 )

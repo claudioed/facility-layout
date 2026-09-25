@@ -28,7 +28,15 @@ func NewPool(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg.ConnConfig.Tracer = otelpgx.NewTracer()
+	cfg.ConnConfig.Tracer = otelpgx.NewTracer(
+		// otelpgx v0.12.0 stopped prefixing span names with the operation
+		// kind ("query ", "prepare ", "batch query ") by default, to follow
+		// the OTel database span-naming convention. This repo's tests and
+		// tracing dashboards key off the "query " prefix (see
+		// TestDatabaseCallsBecomeChildSpans), so opt back into the previous
+		// behavior explicitly rather than silently losing it on the bump.
+		otelpgx.WithQuerySpanNamePrefix(),
+	)
 
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
