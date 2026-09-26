@@ -855,7 +855,7 @@ gate), `bdd`, `integration`, `mutation-fast` (the blocking mutation subset,
 thresholds from `.gremlins.yaml`), `vuln` (govulncheck), `api-lint`,
 `helm-lint` and `arch-test` on every push and PR; the exhaustive `mutation`
 job runs only on schedule/manual dispatch; and `docker-publish` pushes to
-Docker Hub on `main` once every other job is green. Dependency drift is
+GHCR on `main` once every other job is green. Dependency drift is
 watched by `.github/dependabot.yml` (gomod + github-actions, weekly).
 
 ## Helm chart
