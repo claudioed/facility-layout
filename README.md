@@ -5,7 +5,7 @@
 > follows real industry-standard patterns and terminology (the
 > Site-Area-Zone-Aisle-Bay-Level-Position location-code hierarchy,
 > RFC 7807, hexagonal architecture) but is **not a production system** and
-> is **not affiliated with, endorsed by, or representative of Amazon or any
+> is **not affiliated with, endorsed by, or representative of any real-world
 > other company**.
 
 The **Facility Layout** bounded context of the `warehouse-systems` platform:

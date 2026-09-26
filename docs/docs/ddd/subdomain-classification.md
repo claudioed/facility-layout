@@ -38,7 +38,7 @@ Physical location has exactly the same shape as Cartonization:
 
 - It is needed by the **WMS tier**: `inventory-storage` cannot accept a stow
   without knowing the scanned location is real and active. The
-  Amazon-fulfillment reference is explicit that placing an item without a
+  e-commerce-fulfillment reference is explicit that placing an item without a
   valid location scan is how inventory becomes "lost."
 - It is needed by the **WES tier**: `wes-work-planning` and
   `fulfillment-execution` reason about `Zone`, `Travel Path` and
@@ -92,7 +92,7 @@ details.
 
 ## Where it sits in the WMS/WES/WCS layering
 
-The Amazon-fulfillment reference classifies "bin-accurate location" inside
+The e-commerce-fulfillment reference classifies "bin-accurate location" inside
 the WMS-tier **Inventory & Slotting** core subdomain, and notes that context
 exposes it as an Open Host Service. This service is the generalized,
 multi-consumer version of that same concern — which is why its CloudEvents
