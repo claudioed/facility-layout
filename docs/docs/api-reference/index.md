@@ -7,9 +7,12 @@ description: Every endpoint facility-layout exposes, generated from the real api
 
 # API Reference
 
-`facility-layout` exposes one HTTP API. There is no message-broker interface:
-see [Domain events](../ddd/domain-events.md) for why there is no AsyncAPI
-document and no Events page here.
+`facility-layout` exposes one HTTP API, documented here. Its message-broker
+interface — the Published Language on the `warehouse.facility.events` Kafka
+topic — is specified in
+[`apis/asyncapi.yaml`](https://github.com/claudioed/facility-layout/blob/main/apis/asyncapi.yaml)
+(AsyncAPI 2.6.0) and described on [Domain events](../ddd/domain-events.md);
+it has no generated page in this section.
 
 ## How this section is organised
 
@@ -26,7 +29,7 @@ document and no Events page here.
 The pages under **REST API (from `openapi.yaml`)** are generated at build
 time by `docusaurus-plugin-openapi-docs` directly from
 [`apis/openapi.yaml`](https://github.com/claudioed/facility-layout/blob/main/apis/openapi.yaml)
-in this repository — the same 1,900-line OpenAPI 3.0.3 document that is
+in this repository — the same ~2,600-line OpenAPI 3.0.3 document that is
 linted in CI:
 
 ```bash
@@ -64,10 +67,14 @@ graph LR
     subgraph R["Read side — draw the warehouse"]
         LAY["/sites/{siteCode}/layout<br/>nested JSON or SVG"]
         GRID["/zones/{zoneId}/grid<br/>2D matrix"]
+        ROLE["/sites/{siteCode}/locations?role=<br/>functional locations"]
+        TG["/zones/{zoneId}/travel-graph<br/>/distance"]
     end
 
     L --> LAY
     L --> GRID
+    L --> ROLE
+    L --> TG
 ```
 
 ## Endpoint count
@@ -76,14 +83,15 @@ graph LR
 |---|---:|---:|
 | Sites | 2 | 3 |
 | Zones | 2 | 3 |
-| Aisles | 2 | 3 |
+| Aisles | 3 | 5 |
 | Location Types | 2 | 3 |
 | Placement Rules | 2 | 3 |
-| Locations | 4 | 4 |
-| Layout | 2 | 2 |
+| Locations | 5 | 6 |
+| Layout | 6 | 7 |
 | Health | 1 | 1 |
-| **Total** | **17** | **22** |
+| **Total** | **23** | **31** |
 
-Every one of the 17 paths in the router has a corresponding `paths` entry in
-`apis/openapi.yaml`. The per-route breakdown is on the
-[Endpoint catalogue](./endpoints.md) page.
+Every one of the 31 operations the router mounts has a corresponding
+operation in `apis/openapi.yaml`. The per-route breakdown — including the two
+geometry operations whose specification path differs from the router's — is
+on the [Endpoint catalogue](./endpoints.md) page.

@@ -85,6 +85,6 @@ bounded context and its own service, not a package bolted onto
   exact vocabulary this service speaks.
 - [API Reference](../api-reference/index.md) — every endpoint, generated from
   the real `apis/openapi.yaml`.
-- [Context map](../ecosystem/context-map.md) — how this fits the other four
-  warehouse-systems services (and what is honestly *not* wired yet).
+- [Context map](../ecosystem/context-map.md) — how this fits the other
+  warehouse-systems services, and which of them consume it today.
 - [Architecture Decision Records](../adr/index.md) — the decisions, and why.

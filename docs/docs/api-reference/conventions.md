@@ -46,6 +46,14 @@ header points at something that actually has a representation:
 
 A `Location` with no `GET` behind it is not maturity level 2.
 
+:::caution[Two exceptions in the current code]
+The geometry-era create endpoints do not yet meet this rule.
+`POST /sites/{siteCode}/structures` sets
+`Location: /sites/{siteCode}/structures/{id}`, but no route serves a single
+fixed structure (use `GET /sites/{siteCode}/structures`).
+`POST /zones/{zoneId}/cross-aisles` returns `201` with no `Location` header.
+:::
+
 ## Status codes
 
 | Code | When |
@@ -115,6 +123,8 @@ with `errors.Is`. The domain never knows an HTTP status code exists.
 | `duplicate-location-type` | 409 | A location type with this name already exists |
 | `duplicate-placement-rule` | 409 | A placement rule with this id already exists |
 | `duplicate-location-code` | 409 | A location slot with this code already exists |
+| `duplicate-fixed-structure` | 409 | A fixed structure with this id already exists |
+| `duplicate-cross-aisle` | 409 | A cross-aisle between these aisles at this bay already exists |
 | `site-not-active` | 409 | Site is not active |
 | `zone-not-active` | 409 | Zone is not active |
 | `aisle-not-active` | 409 | Aisle is not active |
@@ -127,8 +137,25 @@ with `errors.Is`. The domain never knows an HTTP status code exists.
 | `unknown-status` | 422 | Unknown lifecycle status |
 | `unknown-placement-effect` | 422 | Unknown placement rule effect |
 | `empty-zone-predicate` | 422 | Placement rule predicate constrains nothing |
+| `unknown-location-role` | 422 | Unknown location role |
+| `unknown-dock-flow` | 422 | Unknown dock flow |
+| `unknown-activity` | 422 | Unknown work center activity |
+| `dock-flow-required` | 422 | A Dock location requires a dockFlow |
+| `work-center-activities-required` | 422 | A WorkCenter location requires at least one activity |
+| `functional-attributes-not-allowed` | 422 | dockFlow and activities may only be set on a Dock or WorkCenter location |
 | `negative-sequence-hint` | 422 | Aisle sequence hint must not be negative |
 | `zone-mismatch` | 422 | Zone attributes do not match the location code's zone |
+| `invalid-z` | 422 | Z coordinate must not be negative |
+| `invalid-dimensions` | 422 | Width, depth, and height must all be greater than zero |
+| `negative-pick-sequence` | 422 | Pick sequence must not be negative |
+| `unknown-fixed-structure-kind` | 422 | Unknown fixed structure kind |
+| `empty-fixed-structure-footprint` | 422 | Fixed structure requires a real footprint |
+| `cross-aisle-same-aisle` | 422 | Cross-aisle must connect two distinct aisles |
+| `cross-aisle-aisle-mismatch` | 422 | Cross-aisle aisles must both belong to the named zone |
+| `no-route-between-zones` | 422 | No route: the two locations are in different zones |
+| `no-route` | 422 | No route exists between these two waypoints |
+| `unknown-travel-waypoint` | 422 | The travel graph has no waypoint for this aisle/bay |
+| `invalid-pitch` | 422 | Bay pitch and level pitch must both be greater than zero |
 | `malformed-request-body` | 400 | The request body is not valid JSON |
 | `malformed-location-code` | 400 | Malformed location code |
 | `invalid-site-code` | 400 | Invalid site code |
@@ -138,6 +165,13 @@ with `errors.Is`. The domain never knows an HTTP status code exists.
 | `invalid-location-type` | 400 | Invalid location type |
 | `empty-placement-rule-id` | 400 | Placement rule id must not be empty |
 | `missing-location-code` | 400 | Location code is required |
+| `empty-fixed-structure-id` | 400 | Fixed structure requires an id |
+| `empty-fixed-structure-site-code` | 400 | Fixed structure must be scoped to a site code |
+| `empty-fixed-structure-label` | 400 | Fixed structure requires a label |
+| `empty-cross-aisle-zone-id` | 400 | Cross-aisle must be scoped to a zone id |
+| `empty-cross-aisle-from-aisle` | 400 | Cross-aisle requires a from-aisle code |
+| `empty-cross-aisle-to-aisle` | 400 | Cross-aisle requires a to-aisle code |
+| `empty-cross-aisle-bay` | 400 | Cross-aisle requires a bay |
 | `empty-import` | 400 | Facility layout import must contain at least one row |
 | `internal-error` | 500 | An unexpected internal error occurred |
 

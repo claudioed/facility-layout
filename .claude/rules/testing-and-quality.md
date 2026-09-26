@@ -1,6 +1,6 @@
 # Testing discipline, Definition of Done, tech standards
 
-## Tech & standards (IDENTICAL stack and quality bar to the other four services)
+## Tech & standards (IDENTICAL stack and quality bar to the other fleet services)
 
 - Go 1.26, modules. Module path: `github.com/claudioed/facility-layout`.
 - chi (`github.com/go-chi/chi/v5`), pgx/v5 + pgxpool, golang-migrate SQL
@@ -27,7 +27,7 @@
 - gofmt clean; `golangci-lint run ./...` zero issues (config copied from
   inventory-storage, see above).
 - Unit test coverage >= 90% combined across `internal/domain/...` and
-  `internal/application/...` (identical gate to the other four services).
+  `internal/application/...` (identical gate to the other fleet services).
 - README.md: run steps (compose/migrate/go run), every endpoint with curl
   examples (including a full worked example: register a site, a zone, an
   aisle, a location type, a placement rule, a slot, then GET the layout

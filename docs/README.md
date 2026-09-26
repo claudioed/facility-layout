@@ -43,9 +43,11 @@ docs/                     the markdown content
   api-reference/          conventions, endpoint catalogue, drawing the warehouse,
                           bulk import, + generated rest/ from openapi.yaml
   ecosystem/              context map, consuming this service
+  mcp/                    the MCP governance charter
+  analytics/              the catalog-growth report contract
   adr/                    architecture decision records (Nygard format)
 src/pages/index.tsx       landing page
-sidebars.ts               the six top-level categories, in order
+sidebars.ts               the eight top-level categories, in order
 docusaurus.config.ts      site config, openapi-docs + mermaid plugins
 ```
 

@@ -110,6 +110,16 @@ non-user-facing servers:
    its own client for that hop and **MUST NOT** pass a client token through
    (confused-deputy prevention) — applies the day any upstream hop exists.
 
+:::warning This service does not currently conform to §7.1–§7.4
+[ADR-0015](../adr/0015-remove-rest-mcp-auth.md) removed the static-bearer
+auth layer from both this service's REST API and its MCP server (and reverts
+ADR-0014). Today `cmd/mcp` accepts unauthenticated requests and has no
+read/read-write key classes; the `TestNoAuthMiddlewareReintroduced` fitness
+test keeps it that way until a new ADR says otherwise. The rules above remain
+the estate standard; §7.5 (in-cluster only, never public) is what currently
+bounds the exposure here.
+:::
+
 ## 8. Guardrails (regardless of auth)
 
 1. Every tool handler **MUST** validate its inputs defensively — the caller is a
@@ -143,7 +153,10 @@ Jaeger and Grafana alongside HTTP.
 3. **Phase-6 CI gate (planned):** a workflow that lints tool schemas, enforces
    the naming conventions and mandatory annotations, and fails a PR that exceeds
    the tool-count budget without justification — the left-shift equivalent of
-   `make check` for the MCP surface.
+   `make check` for the MCP surface. In `facility-layout` part of this already
+   runs as unit tests in `internal/adapters/inbound/mcp/governance_test.go`
+   (tool count ≤ 8, naming, mandatory annotations), so it gates every
+   `make check`.
 
 ## 11. Changing this charter
 

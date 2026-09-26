@@ -74,7 +74,7 @@ not part of the Go module.
 
 JSON DTOs live in the http adapter; never leak domain structs. Follow the
 SAME REST maturity level (Richardson Level 2) and RFC 7807
-(`application/problem+json`) error format the other four services already
+(`application/problem+json`) error format the other fleet services already
 use — replicate it exactly (resource nouns, correct verbs/status codes,
 `Location` header on every 201, RFC 7807 problem details on every error).
 
