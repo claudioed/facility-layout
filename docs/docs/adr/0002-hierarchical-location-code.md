@@ -18,7 +18,7 @@ during a stow. It is the single most consequential decision in the service.
 
 The forces:
 
-- **Physical and digital identity must match.** The Amazon-fulfillment
+- **Physical and digital identity must match.** The e-commerce-fulfillment
   reference is explicit that a stow requires both an item scan and a
   *location* scan, and that placing an item without recording the location is
   precisely how inventory becomes "lost." Whatever identifies a slot in the

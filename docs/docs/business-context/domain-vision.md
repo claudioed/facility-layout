@@ -31,7 +31,7 @@ deliberately narrow, and the boundary is the interesting part.
 
 The line is *structure versus contents*. Facility Layout knows the shelf
 exists and what shape it is. It has no opinion whatsoever about what is
-sitting on it. The Amazon-fulfillment reference model puts "bin-accurate
+sitting on it. The e-commerce-fulfillment reference model puts "bin-accurate
 location" inside the WMS-tier **Inventory & Slotting** core subdomain, and
 notes that context exposes it as an Open Host Service. This service is the
 generalized, multi-consumer version of exactly that concern, factored out so

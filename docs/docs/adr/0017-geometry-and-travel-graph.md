@@ -10,7 +10,7 @@ description: "The warehouse map has no coordinates, no fixed structures, and no 
 
 ## Status
 
-**Proposed.**
+**Accepted.**
 
 ## Context
 
