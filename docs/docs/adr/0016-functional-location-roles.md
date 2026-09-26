@@ -10,7 +10,7 @@ description: "Every LocationType in v1 implicitly means storage. Real WMS/WES es
 
 ## Status
 
-**Proposed.**
+**Accepted.**
 
 ## Context
 
