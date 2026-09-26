@@ -92,6 +92,8 @@ outside itself.
 |---|---|---|
 | LocationType name non-empty | `placement.NewLocationType` | `ErrEmptyLocationTypeName` → 400 |
 | Default capacity strictly positive | `shared.NewCapacity` | `ErrInvalidMaxWeight` / `ErrInvalidMaxVolume` → 422 |
+| Role is a known `LocationRole` (defaults to `Storage`) | `placement.ParseLocationRole` | `ErrUnknownLocationRole` → 422 |
+| Capacity required only for `Storage`, `Staging`, `Drop`, `Consolidation` roles | `placement.NewLocationType` | `ErrInvalidMaxWeight` → 422 |
 | LocationType name unique | `RegisterLocationType` use case | `ErrDuplicateLocationType` → 409 |
 | Rule id non-empty and unique | `placement` + use case | `ErrEmptyRuleID` → 400 / `ErrDuplicatePlacementRule` → 409 |
 | Rule effect is Allow or Deny | `placement.ParseEffect` | `ErrUnknownEffect` → 422 |
@@ -111,10 +113,23 @@ is rejected rather than accepted as a facility-wide rule.
 | Site → Zone → Aisle chain resolves | `RegisterLocationSlot` use case | `ErrSiteNotFound` / `ErrZoneNotFound` / `ErrAisleNotFound` → 404 |
 | **Every link in that chain is Active** | `RegisterLocationSlot` use case | `ErrSiteNotActive` / `ErrZoneNotActive` / `ErrAisleNotActive` → 409 |
 | Supplied zone attributes match the code's own zone | `slot.NewLocationSlot` | `ErrZoneMismatch` → 422 |
-| Capacity envelope strictly positive | `shared.NewCapacity` | `ErrInvalidMaxWeight` / `ErrInvalidMaxVolume` → 422 |
+| Capacity envelope strictly positive (when the role requires capacity) | `shared.NewCapacity` / `slot.NewLocationSlot` | `ErrInvalidMaxWeight` / `ErrInvalidMaxVolume` → 422 |
+| A `Dock` slot has a valid `dockFlow`; a `WorkCenter` slot has at least one valid activity; no other role carries either | `slot.NewFunctionalAttributes` | `ErrDockFlowRequired` / `ErrWorkCenterActivitiesRequired` / `ErrFunctionalAttributesNotAllowed` / `ErrUnknownDockFlow` / `ErrUnknownActivity` → 422 |
 | **Satisfies every applicable PlacementRule** | `slot.NewLocationSlot` via `RuleSet.Check` | `ErrPlacementRuleViolated` → 422, naming the violated rule |
 | Cannot decommission twice | `LocationSlot.Decommission` | `ErrAlreadyDecommissioned` → 409 |
 | A decommissioned code is never resurrected by re-registration | `RegisterLocationSlot` use case | `ErrDuplicateLocationCode` → 409 |
+| Geometry is real: non-negative `z`, strictly positive dimensions | `shared.NewPoint3D` / `NewDimensions` | `ErrInvalidZ` / `ErrInvalidDimensions` → 422 |
+| Geometry and pick sequence are frozen once decommissioned; pick sequence non-negative | `LocationSlot.SetGeometry` / `SetPickSequence` | `ErrSlotDecommissioned` → 409 / `ErrNegativePickSequence` → 422 |
+
+### Geometry and travel (ADR 0017)
+
+| Invariant | Enforced in | Failure |
+|---|---|---|
+| A cross-aisle connects two distinct aisles, both in the named zone | `aisle.NewCrossAisle` + `RegisterCrossAisle` use case | `ErrCrossAisleSameAisle` / `ErrCrossAisleAisleMismatch` → 422 |
+| One cross-aisle per `(zone, from, to, bay)` | `RegisterCrossAisle` use case | `ErrDuplicateCrossAisle` → 409 |
+| A fixed structure has an id, site, known kind, real footprint and label; id unique | `structure.NewFixedStructure` + use case | `ErrEmptyID` / `ErrEmptyLabel` → 400, `ErrUnknownKind` / `ErrEmptyFootprint` → 422, `ErrDuplicateFixedStructure` → 409 |
+| A zone's bay and level pitch are both positive | `Zone.SetPitch` | `ErrInvalidPitch` → 422 |
+| Travel distance is only computed within one zone, and never guessed | `EstimateTravelDistance` use case, `travel.Graph` | `ErrNoRouteBetweenZones` / `ErrNoRoute` / `ErrUnknownNode` → 422 |
 
 ## Placement-rule evaluation
 
@@ -179,4 +194,4 @@ See [Bulk import](../api-reference/bulk-import.md) and
 | Architecture | `arch-go` fitness test — the domain may not import the application layer |
 
 The combined statement coverage gate across `internal/domain/...` and
-`internal/application/...` is **≥ 90%**, matching the other four services.
+`internal/application/...` is **≥ 90%**, matching the other fleet services.

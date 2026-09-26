@@ -59,7 +59,7 @@ shapes how this service is built:
 
 - **Correctness over cleverness.** Every invariant is enforced in the domain
   and unit-tested on both the passing and the failing path.
-- **Stability over feature velocity.** Four other services will conform to
+- **Stability over feature velocity.** Several services conform to
   this context's Published Language. Breaking it is expensive for everyone,
   so the surface is small and boring on purpose.
 - **Buy-shaped, build-because-we-must.** The location-code hierarchy is
@@ -70,23 +70,24 @@ shapes how this service is built:
 ## Relationship to the rest of the system
 
 This service is an **Open Host Service** with a **Published Language** (its
-domain events plus a stable REST surface). It has **no inbound dependency**
-on any of the other four services and never will:
+domain events plus a stable REST surface). It has **no dependency** on any
+other warehouse-systems service and never will:
 
 - It does not read `inventory-storage`'s stock.
 - It does not know what a Task, an Assignment, a Wave or a Shift is.
 - It never mutates another context's data, and none of them get write access
   to this one's aggregates.
 
-`inventory-storage`, `wes-work-planning`, `workforce-management` and
-`fulfillment-execution` are all downstream **Conformists** to whatever this
-service publishes.
+`inventory-storage`, `wes-work-planning` and `fulfillment-execution` are
+downstream **Conformists** to whatever this service publishes.
 
-:::note[Honest status]
-The Conformist relationship above is a **strategic decision that is not yet
-technically wired**. This service currently has no Kafka integration and no
-live consumer. See [Context map](../ecosystem/context-map.md) for exactly
-what exists today versus what is planned.
+:::note[Current status]
+Those relationships are wired in code: `inventory-storage` consumes the
+`warehouse.facility.events` Kafka topic, `wes-work-planning` calls
+`GET /distance`, and `fulfillment-execution` reads a location's `role` via
+`GET /locations/{locationCode}`. `workforce-management` has no relationship
+with this service. See [Context map](../ecosystem/context-map.md) for the
+details.
 :::
 
 ## Where it sits in the WMS/WES/WCS layering

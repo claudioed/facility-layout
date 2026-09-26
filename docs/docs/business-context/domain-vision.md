@@ -67,20 +67,21 @@ extracted into one service, and everyone else references it.
 
 ## Why it is an Open Host Service with no inbound dependencies
 
-This service has **no** inbound dependency on any of the other four services,
+This service has **no** dependency on any other warehouse-systems service,
 and never will. It does not read `inventory-storage`'s stock, it does not
 know what a Task is, and it does not call anybody. Everything it publishes is
-its **Published Language**: eight past-tense
+its **Published Language**: twelve past-tense
 [domain events](../ddd/domain-events.md) plus a stable REST surface.
 
 That asymmetry is the point. A context that everyone depends on must be
 cheap to depend on: no coupling back, no ordering constraints at startup, no
 "the map is down so nobody can plan" cascade beyond a plain read failure. The
-other four are downstream **Conformists** to whatever shape this service
-publishes — they translate its vocabulary into their own models rather than
-negotiating a shared one. See [Context map](../ecosystem/context-map.md) for
-where that stands today (short version: strategically decided, technically
-not yet wired).
+services that use it are downstream **Conformists** to whatever shape this
+service publishes — they translate its vocabulary into their own models
+rather than negotiating a shared one. See
+[Context map](../ecosystem/context-map.md) for exactly who consumes what today
+(`inventory-storage` over Kafka, `wes-work-planning` and
+`fulfillment-execution` over REST, `warehouse-ops-agent` over MCP).
 
 ## The location code is the product
 

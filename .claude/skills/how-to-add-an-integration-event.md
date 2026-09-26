@@ -8,11 +8,12 @@ caused a real incident once (wes-work-planning#67, described below).
 
 facility-layout is unusual in this fleet: it is an **Open Host Service**
 whose domain events ARE its Published Language (ADR-0009). It currently
-has no cross-service consumer of its own — every sibling service
-(inventory-storage, wes-work-planning, workforce-management,
-fulfillment-execution) is a Conformist reading FROM it, never the other
-way around (see this repo's `AGENTS.md`: "This service has NO inbound
-dependency on any of the other four fleet services and never will"). So
+has no cross-service consumer of its own — its downstream services
+(inventory-storage via `warehouse.facility.events`; wes-work-planning,
+fulfillment-execution and warehouse-ops-agent via REST/MCP) are
+Conformists reading FROM it, never the other way around (see this repo's
+`AGENTS.md`: "It has NO inbound dependency on any other fleet service and
+never will"). So
 this guide's "publish" half is this repo's own lived pattern; its
 "consume" half documents the rules a future consumer here would have to
 follow, plus the one Kafka consumer this repo DOES already run — the

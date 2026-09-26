@@ -20,9 +20,12 @@ contexts read but never write.
 
 **Strategic classification:** Generic Subdomain, extracted rather than
 duplicated. It is an **Open Host Service** with a **Published Language** (its
-domain events). It has no inbound dependency on any other service;
-`inventory-storage`, `wes-work-planning`, `workforce-management` and
-`fulfillment-execution` are downstream **Conformists** to what it publishes.
+domain events on the `warehouse.facility.events` Kafka topic, plus its REST
+API). It depends on no other service. Its downstream **Conformists** today:
+`inventory-storage` (consumes the Kafka topic to validate stows),
+`wes-work-planning` (`GET /distance`), `fulfillment-execution`
+(`GET /locations/{code}` for a location's role), and `warehouse-ops-agent`
+(the MCP tools and the catalog-growth report).
 
 ---
 
@@ -65,22 +68,33 @@ each non-empty and `[A-Z0-9]` only, always round-tripping through
 Hexagonal / ports & adapters. Dependencies point **inward only**:
 
 ```
-cmd/facility/                 main.go — composition root (the only place that knows all layers)
+cmd/facility/                 main.go — composition root for the REST service (the only place that knows all layers)
+cmd/mcp/                      read-only MCP server (Streamable HTTP)
+cmd/facility-projector/       analytics projector (the only analytical-DB writer)
+cmd/facility-reports/         analytics reader (serves /reports/catalog-growth)
 internal/
   domain/                     pure business logic; imports nothing but stdlib and itself
-    shared/                   LocationCode, Capacity, TemperatureClass, Direction, Status, the 8 events
-    site/  zone/  aisle/      the structural aggregates
-    placement/                LocationType, PlacementRule, RuleSet evaluation
-    slot/                     LocationSlot — the coded leaf aggregate
+    shared/                   LocationCode, Capacity, geometry values, enums, the 12 events
+    site/  zone/  aisle/      the structural aggregates (aisle/ also holds CrossAisle)
+    placement/                LocationType, LocationRole, PlacementRule, RuleSet evaluation
+    slot/                     LocationSlot — the coded leaf aggregate — and its functional attributes
+    structure/                FixedStructure (walls, columns, offices, conveyors)
+    travel/                   the travel graph and shortest-path search
   application/
-    ports/                    OUT interfaces only (repos, EventPublisher, Clock)
-    usecases/                 one struct per use case + the two read-model assemblers
+    ports/                    OUT interfaces only (repos, EventPublisher, Clock, LocationMetrics)
+    usecases/                 one struct per use case, including the read-model assemblers
   adapters/
     inbound/http/             chi handlers, DTOs, RFC 7807 error mapping, SVG rendering
-    outbound/postgres/        pgxpool repos + golang-migrate migrations
+    inbound/mcp/              MCP tools, resource template and prompt
+    inbound/kafka/            analytics topic consumer (projector)
+    outbound/postgres/        pgxpool repos + golang-migrate migrations + events outbox
     outbound/memory/          thread-safe in-memory repos for tests and local runs
-    outbound/events/          log + buffered publishers (broker-ready interface)
-migrations/                   golang-migrate SQL
+    outbound/events/          log + buffered publishers
+    outbound/kafka/           integration + analytics topic publishers
+    outbound/analyticsstore/  analytical DB projection and report queries
+    outbound/telemetry/       OpenTelemetry wiring
+  analytics/report/           the catalog-growth report model
+migrations/                   golang-migrate SQL (migrations/analytics for the analytical DB)
 ```
 
 The rule is enforced as an executable test, not a convention:
@@ -97,8 +111,10 @@ into its sibling, or if `ports` grows a concrete type.
 | **Site** | A physical facility/building. Root of the hierarchy. |
 | **Zone** | A behavioral classification scoped to a Site, bundling the Area+Zone segments. Carries `TemperatureClass` (Ambient/Chilled/Frozen) and a `Hazmat` flag. Every `PlacementRule` is keyed by it. |
 | **Aisle** | A physical corridor scoped to a Zone. Carries a `SequenceHint` (walk-order position — the concrete travel-distance input the WES tier needs) and a `Direction` (OneWay/TwoWay). |
-| **LocationType** | A reusable classification of slot shape/kind (`PalletRack`, `Shelf`, `ToteWall`, `BulkFloor`, `Staging`, `Amnesty`) with a default capacity envelope. |
-| **LocationSlot** | The coded leaf aggregate. Its identity **is** its `LocationCode`. Has a LocationType, a capacity envelope, and a Status (`Active`/`UnderMaintenance`/`Decommissioned`). |
+| **LocationType** | A reusable classification of slot shape/kind (`PalletRack`, `Shelf`, `ToteWall`, `BulkFloor`, `Staging`, `Amnesty`) with a default capacity envelope and a `LocationRole`. |
+| **LocationRole** | What a location is *for* (ADR-0016): `Storage` (default), `Dock`, `Yard`, `WorkCenter`, `Drop`, `Staging`, `QC`, `Consolidation`, `Shipping`. Capacity is required only for `Storage`/`Staging`/`Drop`/`Consolidation`. A `Dock` slot carries a `dockFlow` (`Inbound`/`Outbound`/`Both`); a `WorkCenter` slot carries `activities` (`Pack`, `Sort`, `QC`, `VAS`, `Deconsolidate`, `Receive`, `Kit`). |
+| **LocationSlot** | The coded leaf aggregate. Its identity **is** its `LocationCode`. Has a LocationType (and so a role), a capacity envelope, optional physical geometry, and a Status (`Active`/`UnderMaintenance`/`Decommissioned`). |
+| **CrossAisle / FixedStructure** | Physical geometry (ADR-0017): a walkable connection between two aisles of a zone, and a wall/column/office/conveyor footprint on a site. Together with aisle centrelines they form each zone's **travel graph**. |
 | **PlacementRule** | Declares which LocationTypes are legal in which Zones. The mechanism that prevents "ambient product in the frozen zone" — enforced once, at registration time. |
 | **Facility layout** | The readable, drawable projection of the whole structure: zones → aisles → slots, shaped for a UI to render directly. |
 
@@ -132,9 +148,17 @@ case that sets it.
 
 `SiteRegistered`, `ZoneRegistered`, `AisleRegistered`,
 `LocationTypeRegistered`, `PlacementRuleDefined`, `LocationSlotRegistered`,
-`LocationSlotDecommissioned`, `FacilityLayoutImported`.
+`LocationSlotDecommissioned`, `FacilityLayoutImported`,
+`LocationGeometryUpdated`, `AisleGeometryUpdated`,
+`FixedStructureRegistered`, `CrossAisleRegistered`.
 
-CloudEvents `type` convention, identical to the other four services:
+With `EVENT_PUBLISHER=kafka` all twelve are published to
+`warehouse.facility.events` (specified in `apis/asyncapi.yaml`) and to
+`warehouse.facility.analytics`. `inventory-storage` consumes
+`ZoneRegistered`, `LocationSlotRegistered` and `LocationSlotDecommissioned`
+from the integration topic.
+
+CloudEvents `type` convention, identical to the other warehouse-systems services:
 
 ```
 com.warehouse.<subdomain>.facility-layout.<entity>.<EventName>
@@ -189,6 +213,10 @@ migrate -source file://migrations -database "$DATABASE_URL" up
 | `OTEL_SERVICE_NAME` | `facility-layout` | `service.name` on every span, metric and log record |
 | `SERVICE_VERSION` | `dev` | `service.version`; overridden by `-ldflags "-X main.serviceVersion=..."` |
 | `ENVIRONMENT` | `local` | `deployment.environment.name` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173,http://localhost:5186` | Comma-separated browser origins allowed to call the API (the `web/` micro-frontend) |
+
+`cmd/mcp` reads `MCP_ADDR` (default `:8090`), `DATABASE_URL`,
+`MIGRATIONS_PATH` and `REPORTS_BASE_URL`.
 
 See [Observability](#observability) for what each of the OTel variables
 actually changes.
@@ -373,6 +401,11 @@ one. Every `201` carries a `Location` header that resolves.
 | `GET` | `/locations/{locationCode}` | Get one slot | `200` |
 | `POST` | `/locations/{locationCode}/decommission` | DecommissionLocationSlot | `204` |
 | `POST` | `/locations/import` | ImportFacilityLayout (bulk, partial success) | `200` |
+| `PUT` | `/locations/{locationCode}/geometry` | SetLocationGeometry (position, dimensions, pick sequence) | `200` |
+| `PUT` | `/zones/{zoneId}/aisles/{aisleCode}/geometry` | SetAisleGeometry (travel centreline) | `200` |
+| `POST` | `/zones/{zoneId}/cross-aisles` | RegisterCrossAisle | `201` |
+| `POST` | `/sites/{siteCode}/structures` | RegisterFixedStructure | `201` + `Location` |
+| `GET` | `/sites/{siteCode}/structures` | List a site's fixed structures | `200` |
 
 The four single-resource `GET`s (`/zones/{zoneId}`,
 `/zones/{zoneId}/aisles/{aisleCode}`, `/location-types/{name}`,
@@ -387,7 +420,14 @@ points at something that actually has a representation — a `Location` with no
 | `GET` | `/sites/{siteCode}/layout` | Full nested structure: zones → aisles → slots, pre-ordered for rendering |
 | `GET` | `/sites/{siteCode}/layout?format=svg` | The same data rendered server-side as an SVG floor plan |
 | `GET` | `/zones/{zoneId}/grid` | One zone as an explicit 2D matrix: rows = Level, columns = (Aisle, Bay) in walk order |
+| `GET` | `/sites/{siteCode}/locations?role=` | Every slot at a site with one `LocationRole` (e.g. all `Dock` doors) |
+| `GET` | `/locations/{locationCode}/classification` | The slot's resolved `hazmat` / `temperatureClass` (ADR-0008) |
+| `GET` | `/zones/{zoneId}/travel-graph` | The zone's travel graph: aisle/bay waypoints and metre-weighted edges |
+| `GET` | `/distance?from=&to=` | Shortest travel distance between two slots in the same zone: `{metresM, estimated, route}` |
 | `GET` | `/healthz` | Liveness |
+
+`apis/openapi.yaml` declares the two geometry `PUT`s without the trailing
+`/geometry` segment; the router (above) is authoritative.
 
 ### Status codes
 
@@ -399,7 +439,7 @@ points at something that actually has a representation — a `Location` with no
 | `400` | Malformed input: bad JSON, a location code that is not seven `[A-Z0-9]` segments, a missing required identifier |
 | `404` | The named site/zone/aisle/slot/type/rule does not exist |
 | `409` | State conflict: a code already taken, a parent that exists but is not Active, a slot already decommissioned |
-| `422` | Semantically invalid: non-positive capacity, unknown enum value, **PlacementRule violation** |
+| `422` | Semantically invalid: non-positive capacity, unknown enum value, **PlacementRule violation**, missing `dockFlow`/`activities` for a Dock/WorkCenter, no route between two locations |
 
 ---
 
@@ -464,7 +504,7 @@ HTTP/1.1 201 Created
 Content-Type: application/json
 Location: /location-types/PalletRack
 
-{"name":"PalletRack","defaultCapacity":{"maxWeightKg":1200,"maxVolumeM3":2.4}}
+{"name":"PalletRack","role":"Storage","defaultCapacity":{"maxWeightKg":1200,"maxVolumeM3":2.4}}
 ```
 
 ### 5 — Define a placement rule
@@ -496,7 +536,7 @@ HTTP/1.1 201 Created
 Content-Type: application/json
 Location: /locations/WH1-STOR-AMB-A07-03-02-B
 
-{"locationCode":"WH1-STOR-AMB-A07-03-02-B","zoneId":"WH1-STOR-AMB","aisleId":"WH1-STOR-AMB-A07","coordinates":{"site":"WH1","area":"STOR","zone":"AMB","aisle":"A07","bay":"03","level":"02","position":"B"},"locationType":"PalletRack","capacity":{"maxWeightKg":1200,"maxVolumeM3":2.4},"status":"Active"}
+{"locationCode":"WH1-STOR-AMB-A07-03-02-B","zoneId":"WH1-STOR-AMB","aisleId":"WH1-STOR-AMB-A07","coordinates":{"site":"WH1","area":"STOR","zone":"AMB","aisle":"A07","bay":"03","level":"02","position":"B"},"locationType":"PalletRack","role":"Storage","capacity":{"maxWeightKg":1200,"maxVolumeM3":2.4},"status":"Active"}
 ```
 
 (Two more slots were added the same way for the examples below:
@@ -542,6 +582,7 @@ curl localhost:8080/sites/WH1/layout
                                 "bay": "03", "level": "01", "position": "A"
                             },
                             "locationType": "PalletRack",
+                            "role": "Storage",
                             "capacity": { "maxWeightKg": 1200, "maxVolumeM3": 2.4 },
                             "status": "Active"
                         },
@@ -554,6 +595,7 @@ curl localhost:8080/sites/WH1/layout
                                 "bay": "03", "level": "02", "position": "A"
                             },
                             "locationType": "PalletRack",
+                            "role": "Storage",
                             "capacity": { "maxWeightKg": 1200, "maxVolumeM3": 2.4 },
                             "status": "Active"
                         },
@@ -566,6 +608,7 @@ curl localhost:8080/sites/WH1/layout
                                 "bay": "03", "level": "02", "position": "B"
                             },
                             "locationType": "PalletRack",
+                            "role": "Storage",
                             "capacity": { "maxWeightKg": 1200, "maxVolumeM3": 2.4 },
                             "status": "Active"
                         }
@@ -574,6 +617,7 @@ curl localhost:8080/sites/WH1/layout
             ]
         }
     ],
+    "fixedStructures": [],
     "totals": {
         "zones": 1,
         "aisles": 1,
@@ -644,9 +688,9 @@ open wh1.svg
 ```
 
 ```xml
-<svg xmlns="http://www.w3.org/2000/svg" width="640" height="240" viewBox="0 0 640 240">
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="150" viewBox="0 0 640 150">
   <title>WH1 facility layout</title>
-  <rect x="0" y="0" width="640" height="240" fill="#ffffff"/>
+  <rect x="0" y="0" width="640" height="150" fill="#ffffff"/>
   <text x="24" y="26" font-family="monospace" font-size="16" font-weight="bold" fill="#1f2933">WH1 — Fulfilment Centre One</text>
   ...
 </svg>
@@ -738,7 +782,9 @@ Content-Type: application/problem+json
 
 `apis/openapi.yaml` (OpenAPI 3.0.3) documents every route with full
 request/response schemas, a shared `Problem` component, and real
-domain-grounded examples. It is linted in CI:
+domain-grounded examples. `apis/asyncapi.yaml` (AsyncAPI 2.6.0) specifies the
+`warehouse.facility.events` topic, its envelope and all twelve messages. The
+OpenAPI document is linted in CI:
 
 ```sh
 spectral lint apis/openapi.yaml --ruleset .spectral.yaml --fail-severity=warn
@@ -845,7 +891,12 @@ separate, opt-in deployable: set `mcp.enabled=true` and the chart renders a
 reads the same `DATABASE_URL` secret as the main deployment, runs the OLTP
 migrations on start (idempotent), and — when `analytics.enabled=true` — is
 wired to the in-cluster reports Service so the catalog-growth report tool
-is registered. `GET /healthz` backs the liveness/readiness probes; the MCP
+is registered. Its surface is read-only: six tools (`list_sites`,
+`get_site_layout`, `get_zone_grid`, `list_functional_locations`,
+`get_zone_travel_graph`, `estimate_travel_distance`) plus
+`get_facility_catalog_growth_report` when `REPORTS_BASE_URL` is set, the
+`layout://facility/{siteCode}` resource template, and the `explore_layout`
+prompt. `GET /healthz` backs the liveness/readiness probes; the MCP
 Streamable HTTP endpoint is served at both `/` and `/mcp`, so a client
 connects to `http://<release>-mcp.<namespace>.svc.cluster.local:8090/mcp`
 directly — there is no authentication layer in front of it (the fleet's

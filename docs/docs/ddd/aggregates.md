@@ -2,13 +2,15 @@
 id: aggregates
 title: Aggregates
 sidebar_label: Aggregates
-description: Site, Zone, Aisle, LocationType, PlacementRule and LocationSlot — identities, state and behaviour.
+description: Site, Zone, Aisle, LocationType, PlacementRule, LocationSlot, CrossAisle and FixedStructure — identities, state and behaviour.
 ---
 
 # Aggregates
 
-Six modelling elements make up this context. Four are structural aggregates
-in a strict hierarchy; two describe placement legality.
+Six core modelling elements make up this context. Four are structural
+aggregates in a strict hierarchy; two describe placement legality. Two more —
+`CrossAisle` and `FixedStructure` — describe physical geometry for the travel
+graph and the floor plan ([ADR 0017](../adr/0017-geometry-and-travel-graph.md)).
 
 ```mermaid
 graph TD
@@ -16,7 +18,7 @@ graph TD
     Zone["<b>Zone</b><br/>identity: Site-Area-Zone<br/>e.g. WH1-STOR-AMB<br/>TemperatureClass · Hazmat"]
     Aisle["<b>Aisle</b><br/>identity: ZoneID-Aisle<br/>e.g. WH1-STOR-AMB-A07<br/>SequenceHint · Direction"]
     Slot["<b>LocationSlot</b><br/>identity: the LocationCode<br/>e.g. WH1-STOR-AMB-A07-03-02-B<br/>LocationType · Capacity · Status"]
-    LType["<b>LocationType</b><br/>identity: Name<br/>e.g. PalletRack<br/>default Capacity"]
+    LType["<b>LocationType</b><br/>identity: Name<br/>e.g. PalletRack<br/>LocationRole · default Capacity"]
     Rule["<b>PlacementRule</b><br/>identity: RuleId<br/>LocationType · Effect · ZonePredicate"]
 
     Site -->|"scopes"| Zone
@@ -61,10 +63,13 @@ aggregate that can never be used alone.
 | | |
 |---|---|
 | **Identity** | `ID()` = `SiteCode-AreaCode-ZoneCode`, e.g. `WH1-STOR-AMB` |
-| **State** | `siteCode`, `areaCode`, `zoneCode`, `temperatureClass`, `hazmat`, `status` |
+| **State** | `siteCode`, `areaCode`, `zoneCode`, `temperatureClass`, `hazmat`, `status`, `bayPitchM`, `levelPitchM` |
 | **Constructor** | `NewZone(siteCode, areaCode, zoneCode string, temperatureClass shared.TemperatureClass, hazmat bool) (*Zone, error)` |
-| **Behaviour** | `Decommission() error` |
-| **Errors** | `ErrEmptySiteCode`, `ErrEmptyAreaCode`, `ErrEmptyZoneCode`, `ErrInvalidCode`, `ErrAlreadyDecommissioned` |
+| **Behaviour** | `Decommission() error`, `SetPitch(bayPitchM, levelPitchM float64) error` |
+| **Errors** | `ErrEmptySiteCode`, `ErrEmptyAreaCode`, `ErrEmptyZoneCode`, `ErrInvalidCode`, `ErrAlreadyDecommissioned`, `ErrInvalidPitch` |
+
+The bay and level pitch are the travel graph's fallback distances when an
+aisle has no real centreline geometry (default bay pitch 1.2 m).
 
 `TemperatureClass` and `Hazmat` are not decoration. They are the fields a
 `PlacementRule` predicate matches on, and they are what makes a Zone a
@@ -80,10 +85,10 @@ A physical corridor scoped to exactly one Zone.
 | | |
 |---|---|
 | **Identity** | `ID()` = `ZoneID-AisleCode`, e.g. `WH1-STOR-AMB-A07` |
-| **State** | `zoneID`, `aisleCode`, `sequenceHint`, `direction`, `status` |
+| **State** | `zoneID`, `aisleCode`, `sequenceHint`, `direction`, `status`, `centreline` |
 | **Constructor** | `NewAisle(zoneID, aisleCode string, sequenceHint int, direction shared.Direction) (*Aisle, error)` |
-| **Behaviour** | `Decommission() error` |
-| **Errors** | `ErrEmptyZoneID`, `ErrEmptyAisleCode`, `ErrInvalidAisleCode`, `ErrNegativeSequenceHint`, `ErrAlreadyDecommissioned` |
+| **Behaviour** | `Decommission() error`, `SetCentreline(shared.Segment) error` |
+| **Errors** | `ErrEmptyZoneID`, `ErrEmptyAisleCode`, `ErrInvalidAisleCode`, `ErrNegativeSequenceHint`, `ErrAlreadyDecommissioned`, `ErrAisleDecommissioned` |
 
 `SequenceHint` is the walk-order position of the aisle — the concrete
 travel-distance input the WES tier needs and previously had nowhere to get.
@@ -93,14 +98,21 @@ The layout read model orders aisles by it, not by registration order.
 ## LocationType
 
 A reusable classification of physical slot shape/kind, carrying the default
-capacity envelope its slots inherit.
+capacity envelope its slots inherit and the functional role they play.
 
 | | |
 |---|---|
 | **Identity** | `Name` |
-| **State** | `name`, `defaultCapacity` |
-| **Constructor** | `NewLocationType(name string, defaultCapacity shared.Capacity) (LocationType, error)` |
-| **Errors** | `ErrEmptyLocationTypeName`, `shared.ErrInvalidMaxWeight` |
+| **State** | `name`, `role`, `defaultCapacity` |
+| **Constructor** | `NewLocationType(name string, role LocationRole, defaultCapacity shared.Capacity) (LocationType, error)` |
+| **Errors** | `ErrEmptyLocationTypeName`, `ErrUnknownLocationRole`, `shared.ErrInvalidMaxWeight` |
+
+`LocationRole` says what a location is *for*: `Storage` (the default when
+none is given), `Dock`, `Yard`, `WorkCenter`, `Drop`, `Staging`, `QC`,
+`Consolidation` or `Shipping`
+([ADR 0016](../adr/0016-functional-location-roles.md)). Only the roles that
+hold stock — `Storage`, `Staging`, `Drop`, `Consolidation` — require a
+capacity envelope; for the others it is optional.
 
 The well-established names from the domain reference are declared as
 constants — `PalletRack`, `Shelf`, `ToteWall`, `BulkFloor`, `Staging`,
@@ -153,10 +165,10 @@ LocationCode.**
 | | |
 |---|---|
 | **Identity** | `shared.LocationCode` — globally unique |
-| **State** | `code`, `locationType`, `capacity`, `status` |
-| **Constructor** | `NewLocationSlot(code, locationType, capacityOverride, attrs, rules) (*LocationSlot, error)` |
-| **Behaviour** | `Decommission() error` |
-| **Errors** | `ErrMissingLocationCode`, `ErrMissingLocationType`, `ErrZoneMismatch`, `ErrAlreadyDecommissioned`, `placement.ErrPlacementRuleViolated` |
+| **State** | `code`, `locationType`, `role`, `functional` (`dockFlow` / `activities`), `capacity`, `status`, optional `position`, `dimensions`, `pickSequence` |
+| **Constructor** | `NewLocationSlot(code, locationType, capacityOverride, functional, attrs, rules) (*LocationSlot, error)` |
+| **Behaviour** | `Decommission() error`, `SetGeometry(position, dimensions) error`, `SetPickSequence(int) error` |
+| **Errors** | `ErrMissingLocationCode`, `ErrMissingLocationType`, `ErrZoneMismatch`, `ErrAlreadyDecommissioned`, `ErrSlotDecommissioned`, `ErrNegativePickSequence`, `placement.ErrPlacementRuleViolated` |
 
 The constructor is the most interesting signature in the domain:
 
@@ -165,10 +177,17 @@ func NewLocationSlot(
 	code shared.LocationCode,
 	locationType placement.LocationType,
 	capacityOverride shared.Capacity,
+	functional FunctionalAttributes,
 	attrs placement.ZoneAttributes,
 	rules placement.RuleSet,
 ) (*LocationSlot, error)
 ```
+
+`functional` is built beforehand by `NewFunctionalAttributes(role, dockFlow,
+activities)`, which requires a `dockFlow` on a `Dock` slot, at least one
+activity on a `WorkCenter` slot, and neither on any other role
+(`ErrDockFlowRequired`, `ErrWorkCenterActivitiesRequired`,
+`ErrFunctionalAttributesNotAllowed`).
 
 `attrs` and `rules` are *passed in* rather than looked up. That is Vernon's
 "aggregates don't reach outside themselves" discipline applied literally:
@@ -181,15 +200,47 @@ rule set, and hands both to the constructor. The aggregate then enforces:
    in one zone's attributes while registering a slot in another
    (`ErrZoneMismatch`).
 4. The capacity envelope resolves: the override if given, otherwise the
-   LocationType's default. It must be positive.
+   LocationType's default. It must be positive when the type's role requires
+   capacity.
 5. `rules.Check(...)` passes.
 
 Only then does a `LocationSlot` exist. There is no path that produces an
 illegal one.
 
+## CrossAisle
+
+A walkable connection between two aisles of the same zone, at one bay.
+
+| | |
+|---|---|
+| **Identity** | `zoneID` + `fromAisle` + `toAisle` + `atBay` |
+| **Constructor** | `NewCrossAisle(zoneID, fromAisle, toAisle, atBay string) (*CrossAisle, error)` |
+| **Behaviour** | `Decommission() error`, `Connects(aisleCode) (other string, ok bool)` |
+| **Errors** | `ErrCrossAisleEmptyZoneID`, `ErrCrossAisleEmptyFromAisle`, `ErrCrossAisleEmptyToAisle`, `ErrCrossAisleSameAisle`, `ErrCrossAisleEmptyBay` |
+
+## FixedStructure
+
+A non-slot physical obstacle on a site's floor plan.
+
+| | |
+|---|---|
+| **Identity** | `ID` — unique; a duplicate is rejected by the use case |
+| **State** | `siteCode`, `kind` (`Wall`/`Column`/`Office`/`Conveyor`/`Other`), `footprint` (a `shared.Rect` in metres), `label` |
+| **Constructor** | `NewFixedStructure(id, siteCode string, kind Kind, footprint shared.Rect, label string) (*FixedStructure, error)` |
+| **Errors** | `ErrEmptyID`, `ErrEmptySiteCode`, `ErrUnknownKind`, `ErrEmptyFootprint`, `ErrEmptyLabel` |
+
+## The travel graph
+
+`internal/domain/travel` is not an aggregate but a pure-domain value: a
+zone's aisle/bay waypoints joined by directed, metre-weighted edges, built
+from aisle centrelines, one-way directions and cross-aisles (falling back to
+the zone's bay pitch, flagged `estimated`, when geometry is missing). Its
+shortest-path search backs `GET /distance` and returns `ErrNoRoute` or
+`ErrUnknownNode` rather than guessing.
+
 ## Read models are not aggregates
 
-`GetSiteLayout` and `GetZoneGrid` return **projections** assembled by
+`GetSiteLayout`, `GetZoneGrid` and `GetZoneTravelGraph` return **projections** assembled by
 querying across these aggregates through the repositories. They are not
 separately stored state, they emit no events, and they perform no writes.
 Because they are derived on read, they cannot go stale relative to the

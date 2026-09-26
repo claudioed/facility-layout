@@ -2,28 +2,30 @@
 id: consuming-this-service
 title: Consuming this service
 sidebar_label: Consuming this service
-description: How a downstream context would integrate today (synchronous REST) and how it is designed to integrate later (events) — with the current status stated plainly.
+description: How a downstream context integrates — synchronous REST, Kafka events, or MCP — and which of those are in use today.
 ---
 
 # Consuming this service
 
-:::warning[Current status]
-No service consumes `facility-layout` today. There is no Kafka adapter, no
-published topic, and no AsyncAPI document in this repository. This page
-describes how consumption is **designed** to work, so that the intended shape
-is written down before anybody builds it — not a description of running
-integration.
+:::info[Current status]
+Four services consume `facility-layout` today: `inventory-storage` over
+Kafka (with a REST fallback), `wes-work-planning` and `fulfillment-execution`
+over REST, and `warehouse-ops-agent` over MCP. See the
+[Context map](./context-map.md) for the exact endpoints, events and switches
+each one uses.
 :::
 
-## Two integration styles, by need
+## Integration styles, by need
 
-| Need | Style | Available today |
+| Need | Style | In use by |
 |---|---|---|
-| "Is this exact location valid, right now, before I accept this stow?" | **Synchronous REST** — `GET /locations/{locationCode}` | ✅ The endpoint exists and works |
-| "Keep a local read model of the building's structure in sync" | **Event subscription** | ❌ Requires a broker adapter that does not exist |
+| "Is this exact location valid, right now, before I accept this stow?" | **Synchronous REST** — `GET /locations/{locationCode}` or `/classification` | `inventory-storage` (`LOCATION_LOOKUP_MODE=http`), `fulfillment-execution` (role lookup) |
+| "Keep a local read model of the building's structure in sync" | **Event subscription** — `warehouse.facility.events` | `inventory-storage` (`LOCATION_LOOKUP_MODE=kafka`) |
+| "How far apart are these two locations?" | **Synchronous REST** — `GET /distance?from=&to=` | `wes-work-planning` |
+| "Let an agent explore the map" | **MCP** — `cmd/mcp`, Streamable HTTP | `warehouse-ops-agent` |
 
-The synchronous path is usable immediately by anything that can make an HTTP
-call. The event path is the designed steady state and is unbuilt.
+Every current consumer defaults to a `permissive` mode, so none of them needs
+this service to be up in order to start.
 
 ## Synchronous validation
 
@@ -55,29 +57,38 @@ For structure rather than a single slot:
 | What zones does this site have? | `GET /sites/{siteCode}/zones` |
 | What aisles, in walk order? | `GET /zones/{zoneId}/aisles` — ordered by `sequenceHint` |
 | The whole building at once | `GET /sites/{siteCode}/layout` |
+| Where are the dock doors / work centers / yard spots? | `GET /sites/{siteCode}/locations?role={LocationRole}` |
+| What is this slot for? | `GET /locations/{locationCode}` — the `role` field (plus `dockFlow` / `activities`) |
+| Walkable topology of a zone | `GET /zones/{zoneId}/travel-graph` |
+| Distance between two slots in the same zone | `GET /distance?from=&to=` → `{metresM, estimated, route}` |
 
-## Event subscription (designed, not built)
+## Event subscription
 
-The intended steady state is that consumers keep their own read model in
-sync from this context's [domain events](../ddd/domain-events.md), rather
-than making a synchronous call per validation.
+Consumers that need a local read model subscribe to this context's
+[domain events](../ddd/domain-events.md) on the `warehouse.facility.events`
+Kafka topic, specified in
+[`apis/asyncapi.yaml`](https://github.com/claudioed/facility-layout/blob/main/apis/asyncapi.yaml).
+The service publishes there when it runs with `EVENT_PUBLISHER=kafka`. Each
+message is a flat envelope (`event_id`, `event_type`, `occurred_at`,
+`source`, `data`), keyed by the identity of the aggregate that raised it, so
+per-aggregate order is preserved.
 
-The events a consumer would care about:
+The events a consumer is most likely to care about:
 
 | Event | Consumer reaction |
 |---|---|
-| `LocationSlotRegistered` | Add the location to the local map as usable. Payload carries `zoneId` and `aisleId` already denormalised, so no code parsing is needed. |
+| `LocationSlotRegistered` | Add the location to the local map as usable. Payload carries `zoneId`, `aisleId` and `role` already, so no code parsing is needed. |
 | `LocationSlotDecommissioned` | Stop offering that location for new work. |
 | `ZoneRegistered` | Learn a new zone, its temperature class and hazmat flag. |
 | `AisleRegistered` | Learn a corridor, its `sequenceHint` walk-order position and its `direction`. This is the travel-path input. |
+| `AisleGeometryUpdated`, `CrossAisleRegistered`, `LocationGeometryUpdated` | Keep a local copy of the travel geometry. |
 | `FacilityLayoutImported` | Recognise a bulk load — useful for distinguishing a building bootstrap from ordinary drift. |
 
-Building it would mean, in this repository: an
-`internal/adapters/outbound/kafka` package implementing
-`ports.EventPublisher`, an `EVENT_PUBLISHER=kafka|log` switch, a
-`warehouse.facility-layout.events` topic, and an `apis/asyncapi.yaml` — all
-matching the pattern the four sibling services already use. None of it
-exists.
+`inventory-storage` is the reference consumer: it replays the topic from the
+first offset on every start under a per-instance consumer group, uses
+`ZoneRegistered`, `LocationSlotRegistered` and `LocationSlotDecommissioned`,
+ignores the rest, and gates its readiness on the replay finishing
+([ADR 0013](../adr/0013-first-published-language-consumer.md)).
 
 ## Rules for a consumer
 
@@ -111,7 +122,9 @@ So that no consumer waits for it:
 
 - It will not track occupancy, stock, reservations or usable inventory.
 - It will not know about Tasks, Assignments, Waves, Shifts or Associates.
-- It will not compute a travel path. It supplies the structural inputs —
-  `sequenceHint`, `direction`, zone adjacency — and the WES tier does the
+- It will not plan work or optimise a pick path. It supplies map topology —
+  `sequenceHint`, `direction`, the travel graph and a shortest distance
+  between two slots (`GET /distance`) — and the WES tier does the
   optimisation, because that optimisation *is* the WES tier's core domain.
+  `/distance` never reports travel time or congestion.
 - It will not call another warehouse-systems service. Ever.
