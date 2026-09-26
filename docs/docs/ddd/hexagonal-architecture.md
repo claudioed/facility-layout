@@ -20,58 +20,79 @@ layer.
 graph LR
     subgraph Inbound["Driving adapters"]
         HTTP["inbound/http<br/>chi handlers · DTOs<br/>RFC 7807 mapping · SVG"]
+        MCP["inbound/mcp<br/>read-only MCP tools"]
+        KIN["inbound/kafka<br/>analytics consumer"]
     end
 
     subgraph App["Application"]
-        UC["usecases<br/>10 use cases"]
+        UC["usecases<br/>30 use cases"]
         P["ports<br/>OUT interfaces only"]
     end
 
     subgraph Dom["Domain — pure Go"]
-        D["site · zone · aisle<br/>placement · slot · shared"]
+        D["site · zone · aisle<br/>placement · slot · structure<br/>travel · shared"]
     end
 
     subgraph Outbound["Driven adapters"]
         PG["outbound/postgres<br/>pgxpool + migrations"]
         MEM["outbound/memory<br/>thread-safe in-memory"]
         EV["outbound/events<br/>log · buffered"]
+        KF["outbound/kafka<br/>integration + analytics publishers"]
     end
 
     HTTP --> UC
+    MCP --> UC
     UC --> D
     UC --> P
     PG -.implements.-> P
     MEM -.implements.-> P
     EV -.implements.-> P
+    KF -.implements.-> P
 ```
+
+The `analytics` read side (`inbound/kafka`, `outbound/analyticsstore`,
+`internal/analytics`, `cmd/facility-projector`, `cmd/facility-reports`) is a
+separate process pair built on the same event stream; see
+[ADR 0010](../adr/0010-analytical-data-product.md).
 
 ## Package layout
 
 ```
-cmd/facility/                 main.go — composition root (the only place that knows all layers)
+cmd/facility/                 main.go — composition root for the REST service (the only place that knows all layers)
+cmd/mcp/                      the read-only MCP server (Streamable HTTP), same use cases
+cmd/facility-projector/       analytics projector: warehouse.facility.analytics -> analytical DB
+cmd/facility-reports/         analytics reader: serves /reports/catalog-growth
 internal/
   domain/                     pure business logic; imports nothing but stdlib and itself
-    shared/                   LocationCode, Capacity, TemperatureClass, Direction, Status, the 8 events
-    site/  zone/  aisle/      the structural aggregates
-    placement/                LocationType, PlacementRule, RuleSet evaluation
-    slot/                     LocationSlot — the coded leaf aggregate
+    shared/                   LocationCode, Capacity, geometry values, enums, the 12 events
+    site/  zone/  aisle/      the structural aggregates (aisle/ also holds CrossAisle)
+    placement/                LocationType, LocationRole, PlacementRule, RuleSet evaluation
+    slot/                     LocationSlot — the coded leaf aggregate — and its functional attributes
+    structure/                FixedStructure — walls, columns, offices, conveyors
+    travel/                   the pure-domain travel graph and shortest-path search
   application/
-    ports/                    OUT interfaces only (repos, EventPublisher, Clock)
-    usecases/                 one struct per use case + the two read-model assemblers
+    ports/                    OUT interfaces only (repos, EventPublisher, Clock, LocationMetrics)
+    usecases/                 one struct per use case, including the read-model assemblers
   adapters/
-    inbound/http/             chi handlers, DTOs, RFC 7807 error mapping, SVG rendering
-    outbound/postgres/        pgxpool repos + golang-migrate migrations
+    inbound/http/             chi handlers, DTOs, RFC 7807 error mapping, SVG rendering, reports handler
+    inbound/mcp/              MCP tools, resource template and prompt over the read use cases
+    inbound/kafka/            analytics topic consumer (projector only)
+    outbound/postgres/        pgxpool repos + golang-migrate migrations + events outbox
     outbound/memory/          thread-safe in-memory repos for tests and local runs
-    outbound/events/          log + buffered publishers (broker-ready interface)
+    outbound/events/          log + buffered publishers
+    outbound/kafka/           integration (warehouse.facility.events) + analytics publishers
+    outbound/analyticsstore/  analytical-database projection and report queries
+    outbound/telemetry/       OpenTelemetry setup and the LocationMetrics recorder
+  analytics/                  the catalog-growth report model
   architecture/               arch-go fitness tests
-migrations/                   golang-migrate SQL
+migrations/                   golang-migrate SQL (migrations/analytics for the analytical DB)
 ```
 
 ## The ports
 
-All eight are **driven** (outbound) interfaces. There are no inbound port
+All eleven are **driven** (outbound) interfaces. There are no inbound port
 interfaces: a use case struct *is* the inbound port, called directly by the
-HTTP adapter.
+HTTP and MCP adapters.
 
 ```go
 type SiteRepo interface {
@@ -99,8 +120,10 @@ type SlotRepo interface {
 	ListByZone(ctx context.Context, zoneID string) ([]*slot.LocationSlot, error)
 }
 
-type LocationTypeRepo  interface { /* Save · FindByName · List */ }
-type PlacementRuleRepo interface { /* Save · FindByID   · List */ }
+type CrossAisleRepo     interface { /* Save · FindByAisles · ListByZone */ }
+type LocationTypeRepo   interface { /* Save · FindByName   · List */ }
+type PlacementRuleRepo  interface { /* Save · FindByID     · List */ }
+type FixedStructureRepo interface { /* Save · FindByID     · ListBySite */ }
 
 type EventPublisher interface {
 	Publish(ctx context.Context, event shared.DomainEvent) error
@@ -109,6 +132,8 @@ type EventPublisher interface {
 type Clock interface {
 	Now() time.Time
 }
+
+type LocationMetrics interface { /* LocationSlotRegistered(ctx, outcome) */ }
 ```
 
 Note what the port signatures traffic in: **domain types**. `SlotRepo` takes
@@ -119,24 +144,22 @@ produced by the validating constructor.
 `Clock` is a port for the same reason: no domain or application code calls
 `time.Now()` directly, so every event timestamp is deterministic under test.
 
-## The ten use cases
+## The use cases
 
-| # | Use case | Shape |
-|---|---|---|
-| 1 | `RegisterSite` | thin — validate, check uniqueness, save, publish |
-| 2 | `RegisterZone` | thin + parent Site resolution |
-| 3 | `RegisterAisle` | thin + parent Zone resolution |
-| 4 | `RegisterLocationType` | thin |
-| 5 | `DefinePlacementRule` | thin + LocationType existence check |
-| 6 | **`RegisterLocationSlot`** | **real orchestration** — full chain of custody + rule set |
-| 7 | `DecommissionLocationSlot` | load, transition, save, publish |
-| 8 | **`ImportFacilityLayout`** | **real orchestration** — per-row, partial success |
-| 9 | `GetSiteLayout` | read-model assembler — no writes, no events |
-| 10 | `GetZoneGrid` | read-model assembler — no writes, no events |
+Thirty use-case structs live in `internal/application/usecases/`, one per
+file group:
 
-Only two use cases carry real logic. That is intentional: the invariants live
-in the domain, and the application layer's job is resolution and
-orchestration, not rule-keeping.
+| Kind | Use cases |
+|---|---|
+| Write — thin | `RegisterSite`, `RegisterZone`, `RegisterAisle`, `RegisterLocationType`, `DefinePlacementRule`, `DecommissionLocationSlot` |
+| Write — **real orchestration** | **`RegisterLocationSlot`** (full chain of custody + rule set + functional attributes), **`ImportFacilityLayout`** (per-row, partial success) |
+| Write — geometry (ADR 0017) | `SetLocationGeometry`, `SetAisleGeometry`, `RegisterCrossAisle`, `RegisterFixedStructure` |
+| Read models — no writes, no events | `GetSiteLayout`, `GetZoneGrid`, `GetZoneTravelGraph`, `EstimateTravelDistance`, `ListLocationsByRole` |
+| Single-resource and list reads | `GetSite`, `ListSites`, `GetZone`, `ListZones`, `GetAisle`, `ListAisles`, `GetLocationType`, `ListLocationTypes`, `GetPlacementRule`, `ListPlacementRules`, `GetLocationSlot`, `GetLocationClassification`, `ListFixedStructures` |
+
+Only two use cases carry real placement logic. That is intentional: the
+invariants live in the domain, and the application layer's job is resolution
+and orchestration, not rule-keeping.
 
 ## Aggregates do not reach outside themselves
 
@@ -148,6 +171,7 @@ func NewLocationSlot(
 	code shared.LocationCode,
 	locationType placement.LocationType,
 	capacityOverride shared.Capacity,
+	functional FunctionalAttributes,
 	attrs placement.ZoneAttributes,
 	rules placement.RuleSet,
 ) (*LocationSlot, error)
@@ -183,6 +207,9 @@ mounts the router:
 - `DATABASE_URL` set → Postgres repositories, migrations run at startup, the
   Postgres event publisher.
 - `DATABASE_URL` unset → in-memory repositories and the log publisher.
+- `EVENT_PUBLISHER=kafka` → independently of the store, the Kafka integration
+  and analytics publishers, fanned out together, replace the publisher
+  above.
 
 Because the swap happens at exactly one place and every port is an interface
 over domain types, the HTTP layer and the entire test suite are identical in

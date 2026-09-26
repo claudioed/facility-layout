@@ -2,7 +2,7 @@
 id: endpoints
 title: Endpoint catalogue
 sidebar_label: Endpoint catalogue
-description: All 23 operations across 18 paths, grouped by OpenAPI tag and cross-checked against the chi router.
+description: All 31 operations across 23 OpenAPI paths, grouped by OpenAPI tag and cross-checked against the chi router.
 ---
 
 # Endpoint catalogue
@@ -11,9 +11,10 @@ Every route the chi router mounts, grouped by its OpenAPI tag. Click any
 operation to reach the generated, interactive reference for it.
 
 :::tip[Coverage]
-**18 / 18** router paths have a corresponding `paths` entry in
-`apis/openapi.yaml`, and **23 / 23** operations are documented. The
-cross-check is at the [bottom of this page](#coverage-cross-check).
+All **31** router operations have a corresponding operation in
+`apis/openapi.yaml` (23 `paths` entries). Two of them — the geometry `PUT`s —
+are documented at a different path than the router mounts; see the
+[coverage cross-check](#coverage-cross-check) at the bottom of this page.
 :::
 
 ## Sites
@@ -55,15 +56,22 @@ needs — and a `Direction`.
 | `POST` | `/zones/{zoneId}/aisles` | [Register an aisle](./rest/register-aisle.api.mdx) | `201` + `Location` |
 | `GET` | `/zones/{zoneId}/aisles` | [List a zone's aisles, in walk order](./rest/list-aisles.api.mdx) | `200` |
 | `GET` | `/zones/{zoneId}/aisles/{aisleCode}` | [Get one aisle](./rest/get-aisle.api.mdx) | `200` |
+| `PUT` | `/zones/{zoneId}/aisles/{aisleCode}/geometry` | [Set an aisle's travel centreline](./rest/set-aisle-geometry.api.mdx) | `200` |
+| `POST` | `/zones/{zoneId}/cross-aisles` | [Register a connection between two aisles](./rest/register-cross-aisle.api.mdx) | `201` (no `Location`) |
 
 `GET /zones/{zoneId}/aisles` returns aisles ordered by `sequenceHint`, not by
-registration order. That ordering *is* the walk order.
+registration order. That ordering *is* the walk order. The centreline and
+cross-aisle operations feed the travel graph
+([ADR 0017](../adr/0017-geometry-and-travel-graph.md)).
 
 ## Location Types
 
 Reusable classifications of physical slot shape/kind — `PalletRack`, `Shelf`,
 `ToteWall`, `BulkFloor`, `Staging`, `Amnesty` — each carrying the default
-capacity envelope its slots inherit.
+capacity envelope its slots inherit and a functional `role` (`Storage` by
+default; also `Dock`, `Yard`, `WorkCenter`, `Drop`, `Staging`, `QC`,
+`Consolidation`, `Shipping` — see
+[ADR 0016](../adr/0016-functional-location-roles.md)).
 
 | Method | Path | Operation | Success |
 |---|---|---|---|
@@ -98,6 +106,7 @@ Language for cross-context placement validation (see [ADR
 | `GET` | `/locations/{locationCode}/classification` | [Get a slot's resolved hazmat/temperature classification](./rest/get-location-classification.api.mdx) | `200` |
 | `POST` | `/locations/{locationCode}/decommission` | [Decommission a slot](./rest/decommission-location-slot.api.mdx) | `204` |
 | `POST` | `/locations/import` | [Import a facility layout](./rest/import-facility-layout.api.mdx) | `200` (partial-success report) |
+| `PUT` | `/locations/{locationCode}/geometry` | [Set a slot's physical geometry](./rest/set-location-geometry.api.mdx) | `200` |
 
 `POST /locations` is the endpoint where the whole
 [chain-of-custody invariant](../ddd/invariants.md) and every applicable
@@ -115,8 +124,16 @@ on read, never separately stored state.
 | `GET` | `/sites/{siteCode}/layout` | [Get a site's full layout](./rest/get-site-layout.api.mdx) | Nested zones → aisles → slots, pre-ordered |
 | `GET` | `/sites/{siteCode}/layout?format=svg` | same operation, `format` query parameter | `image/svg+xml` floor plan |
 | `GET` | `/zones/{zoneId}/grid` | [Get a zone's 2D grid](./rest/get-zone-grid.api.mdx) | Explicit matrix: rows = Level, columns = (Aisle, Bay) in walk order |
+| `GET` | `/sites/{siteCode}/locations?role=` | [List a site's locations by role](./rest/list-locations-by-role.api.mdx) | Flat list of slots with the requested `LocationRole` (e.g. every `Dock` door) |
+| `POST` | `/sites/{siteCode}/structures` | [Register a fixed structure](./rest/register-fixed-structure.api.mdx) | `201` + `Location` — a wall, column, office, conveyor or other obstacle |
+| `GET` | `/sites/{siteCode}/structures` | [List a site's fixed structures](./rest/list-fixed-structures.api.mdx) | `200` |
+| `GET` | `/zones/{zoneId}/travel-graph` | [Get a zone's travel graph](./rest/get-zone-travel-graph.api.mdx) | Nodes (aisle/bay waypoints) and directed, metre-weighted edges |
+| `GET` | `/distance?from=&to=` | [Estimate travel distance](./rest/estimate-travel-distance.api.mdx) | `{metresM, estimated, route}` between two slots in the same zone |
 
-Real output for both is on [Drawing the warehouse](./drawing-the-warehouse.md).
+Real output for the layout and grid is on
+[Drawing the warehouse](./drawing-the-warehouse.md). `/distance` reports map
+topology only — never travel time or congestion — and refuses rather than
+guesses when the two locations are in different zones.
 
 ## Health
 
@@ -127,7 +144,7 @@ Real output for both is on [Drawing the warehouse](./drawing-the-warehouse.md).
 ## Coverage cross-check
 
 The router in `internal/adapters/inbound/http/server.go` mounts exactly these
-paths:
+routes:
 
 ```go
 r.Get("/healthz", s.handleHealthz)
@@ -137,8 +154,11 @@ r.Route("/sites", func(r chi.Router) {
     r.Get("/", s.handleListSites)
     r.Get("/{siteCode}", s.handleGetSite)
     r.Get("/{siteCode}/layout", s.handleGetSiteLayout)
+    r.Get("/{siteCode}/locations", s.handleListLocationsByRole)
     r.Post("/{siteCode}/zones", s.handleRegisterZone)
     r.Get("/{siteCode}/zones", s.handleListZones)
+    r.Post("/{siteCode}/structures", s.handleRegisterFixedStructure)
+    r.Get("/{siteCode}/structures", s.handleListFixedStructures)
 })
 
 r.Route("/zones", func(r chi.Router) {
@@ -147,7 +167,12 @@ r.Route("/zones", func(r chi.Router) {
     r.Post("/{zoneId}/aisles", s.handleRegisterAisle)
     r.Get("/{zoneId}/aisles", s.handleListAisles)
     r.Get("/{zoneId}/aisles/{aisleCode}", s.handleGetAisle)
+    r.Put("/{zoneId}/aisles/{aisleCode}/geometry", s.handleSetAisleGeometry)
+    r.Post("/{zoneId}/cross-aisles", s.handleRegisterCrossAisle)
+    r.Get("/{zoneId}/travel-graph", s.handleGetZoneTravelGraph)
 })
+
+r.Get("/distance", s.handleEstimateTravelDistance)
 
 r.Route("/location-types", func(r chi.Router) {
     r.Post("/", s.handleRegisterLocationType)
@@ -167,20 +192,30 @@ r.Route("/locations", func(r chi.Router) {
     r.Get("/{locationCode}", s.handleGetLocationSlot)
     r.Get("/{locationCode}/classification", s.handleGetLocationClassification)
     r.Post("/{locationCode}/decommission", s.handleDecommissionLocationSlot)
+    r.Put("/{locationCode}/geometry", s.handleSetLocationGeometry)
 })
 ```
 
-That is **18 distinct paths** and **23 operations**, all of which appear in
-`apis/openapi.yaml`:
+That is **31 operations**, every one of which has an operation in
+`apis/openapi.yaml`, grouped under **23 OpenAPI paths**:
 
 | Tag | Paths | Operations |
 |---|---:|---:|
 | Sites | 2 | 3 |
 | Zones | 2 | 3 |
-| Aisles | 2 | 3 |
+| Aisles | 3 | 5 |
 | Location Types | 2 | 3 |
 | Placement Rules | 2 | 3 |
-| Locations | 5 | 5 |
-| Layout | 2 | 2 |
+| Locations | 5 | 6 |
+| Layout | 6 | 7 |
 | Health | 1 | 1 |
-| **Total** | **18** | **23** |
+| **Total** | **23** | **31** |
+
+:::caution[Known spec-vs-router mismatch]
+The two geometry operations (`setAisleGeometry`, `setLocationGeometry`) are
+declared in `apis/openapi.yaml` as `PUT /zones/{zoneId}/aisles/{aisleCode}`
+and `PUT /locations/{locationCode}`, but the router mounts them with a
+trailing `/geometry` segment, as shown above and in the tables on this page.
+The router — and its handler tests — are authoritative; the generated
+reference pages for those two operations show the specification's path.
+:::

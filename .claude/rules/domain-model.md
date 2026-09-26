@@ -40,14 +40,27 @@ empty or contains characters other than `[A-Z0-9]`.
 - **LocationType** — a reusable classification of physical slot shape/kind
   (`PalletRack`, `Shelf`, `ToteWall`, `BulkFloor`, `Staging`, `Amnesty` —
   `amnesty` is a real domain-reference term: where a damaged/mismatched
-  item is set aside during stow). Carries a default capacity envelope (max
-  weight, max volume).
+  item is set aside during stow). Carries a `LocationRole` and a default
+  capacity envelope (max weight, max volume).
+- **LocationRole** (ADR-0016) — what a location is *for*: `Storage`
+  (default), `Dock`, `Yard`, `WorkCenter`, `Drop`, `Staging`, `QC`,
+  `Consolidation`, `Shipping`. Only `Storage`/`Staging`/`Drop`/
+  `Consolidation` require a capacity envelope. A `Dock` slot must carry a
+  `dockFlow` (`Inbound`/`Outbound`/`Both`); a `WorkCenter` slot must carry
+  at least one activity (`Pack`, `Sort`, `QC`, `VAS`, `Deconsolidate`,
+  `Receive`, `Kit`); no other role may carry either.
+  `GET /sites/{siteCode}/locations?role=` lists a site's slots by role.
 - **LocationSlot** — the leaf aggregate: one coded physical slot. Its
   identity IS its `LocationCode`. Has a `LocationType`, a capacity envelope
   (can override the type's default), and a `Status`
-  (`Active`/`Decommissioned`/`UnderMaintenance`). This is the thing
-  `inventory-storage`'s `Bin` aggregate will eventually be validated
-  against (that wiring is a separate future task).
+  (`Active`/`Decommissioned`/`UnderMaintenance`), plus optional geometry
+  (position, dimensions, pick sequence — ADR-0017). `inventory-storage`
+  validates stows against a Kafka-fed local cache of these slots.
+- **CrossAisle / FixedStructure / travel graph** (ADR-0017) — a walkable
+  connection between two aisles of a zone at one bay; a wall/column/office/
+  conveyor footprint on a site; and the pure-domain graph of a zone's
+  aisle/bay waypoints behind `GET /zones/{zoneId}/travel-graph` and
+  `GET /distance`.
 - **PlacementRule** — declares which `LocationType`s are legal in which
   `Zone` (e.g. only a `PalletRack` LocationType may be placed in a `HAZ`
   zone if the rule set says so; a `Frozen`-temperature-class zone rejects a
@@ -83,7 +96,7 @@ empty or contains characters other than `[A-Z0-9]`.
   A slot's `LocationType` must satisfy every `PlacementRule` that applies
   to its Zone, checked at registration time — reject with a clear domain
   error naming the violated rule if not. Capacity envelope (weight/volume)
-  must be positive. A `Decommissioned` slot cannot be re-activated by
+  must be positive when the type's role requires capacity. A `Decommissioned` slot cannot be re-activated by
   re-registering the same code — one-way decommission (ADR-0005).
 - **PlacementRule**: references an existing `LocationType` and either a
   specific `Zone` or a `TemperatureClass`/`Hazmat` predicate; cannot
@@ -98,9 +111,13 @@ SiteRegistered, ZoneRegistered, AisleRegistered, LocationTypeRegistered,
 PlacementRuleDefined, LocationSlotRegistered, LocationSlotDecommissioned,
 FacilityLayoutImported (emitted once per bulk import call, carrying a
 count of slots imported — individual `LocationSlotRegistered` events also
-fire per-slot within that same import).
+fire per-slot within that same import), and the ADR-0017 geometry events
+LocationGeometryUpdated, AisleGeometryUpdated, FixedStructureRegistered,
+CrossAisleRegistered — twelve in all, published to
+`warehouse.facility.events` (`apis/asyncapi.yaml`) when
+`EVENT_PUBLISHER=kafka`.
 
-CloudEvents `type` convention (IDENTICAL to the other four fleet
+CloudEvents `type` convention (IDENTICAL to the other fleet
 services — reverse-DNS, lowercase except the final PascalCase event name,
 entity segment has NO hyphen even for multi-word aggregate names, matching
 e.g. workforce-management's `shiftplan`):
@@ -114,7 +131,8 @@ already classified WMS-tier in `amazon-fulfillment-ddd.md` ("Inventory &
 Slotting" Core subdomain references bin-accurate location as WMS's Open
 Host Service), and this service is the generalized, multi-consumer version
 of that concern. Entity segments: `site`, `zone`, `aisle`, `locationtype`,
-`placementrule`, `locationslot`. Examples:
+`placementrule`, `locationslot` (also used by `FacilityLayoutImported` and
+`LocationGeometryUpdated`), `structure`, `crossaisle`. Examples:
 
 ```
 com.warehouse.wms.facility-layout.locationslot.LocationSlotRegistered
@@ -127,10 +145,11 @@ com.warehouse.wms.facility-layout.placementrule.PlacementRuleDefined
 1. RegisterSite(siteCode, name) -> Site
 2. RegisterZone(siteCode, areaCode, zoneCode, temperatureClass, hazmat) -> Zone
 3. RegisterAisle(zoneRef, aisleCode, sequenceHint, direction) -> Aisle
-4. RegisterLocationType(name, defaultCapacity) -> LocationType
+4. RegisterLocationType(name, role?, defaultCapacity) -> LocationType
 5. DefinePlacementRule(locationType, zonePredicate) -> PlacementRule
-6. RegisterLocationSlot(locationCode, locationType, capacityOverride?) ->
-   LocationSlot (validates the full chain-of-custody + placement rules)
+6. RegisterLocationSlot(locationCode, locationType, capacityOverride?,
+   dockFlow?, activities?) -> LocationSlot (validates the full
+   chain-of-custody + placement rules + functional attributes)
 7. DecommissionLocationSlot(locationCode) -> marks Decommissioned
 8. ImportFacilityLayout(rows[]) -> bulk-registers sites/zones/aisles/slots
    from a structured list in one call, atomic per-row validation, partial
@@ -139,3 +158,13 @@ com.warehouse.wms.facility-layout.placementrule.PlacementRuleDefined
 9. GetSiteLayout(siteCode) -> the full nested, drawable structure (read model)
 10. GetZoneGrid(zoneRef) -> a 2D grid (aisle x bay x level) of that zone's
     slots, shaped for direct UI rendering (read model)
+11. ListLocationsByRole(siteCode, role) -> a site's slots with one role
+    (read model, ADR-0016)
+12. SetLocationGeometry / SetAisleGeometry / RegisterCrossAisle /
+    RegisterFixedStructure -> the ADR-0017 geometry writes
+13. GetZoneTravelGraph(zoneRef) / EstimateTravelDistance(from, to) -> the
+    travel graph and shortest same-zone distance (read models, ADR-0017)
+
+Plus single-resource/list reads (`GetSite`, `ListSites`, `GetZone`, …,
+`GetLocationClassification`, `ListFixedStructures`) — 30 use-case structs
+in `internal/application/usecases/`.

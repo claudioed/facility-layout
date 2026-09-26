@@ -92,7 +92,7 @@ curl "localhost:8080/sites/WH1/layout?format=svg" -o wh1.svg   # server-rendered
 
 ## Quality gates
 
-The repository holds itself to the same five-stage bar as the four sibling
+The repository holds itself to the same five-stage bar as its sibling
 services:
 
 ```bash

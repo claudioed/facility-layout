@@ -29,12 +29,15 @@ before touching that area of the code.
   that's why this is its own bounded context and its own service, never a
   package bolted onto `inventory-storage`.
 - **Relationship to the rest of the system**: this service is an **Open
-  Host Service** with a **Published Language** (its domain events). It has
-  NO inbound dependency on any of the other four fleet services and never
-  will — `inventory-storage`, `wes-work-planning`, `workforce-management`,
-  `fulfillment-execution` are all downstream **Conformists**. This service
-  never reaches into their aggregates, and none of them get write access to
-  this one's.
+  Host Service** with a **Published Language** (its domain events and REST
+  API). It has NO inbound dependency on any other fleet service and never
+  will. Its live downstream **Conformists**: `inventory-storage` (consumes
+  `ZoneRegistered`/`LocationSlotRegistered`/`LocationSlotDecommissioned`
+  from `warehouse.facility.events`), `wes-work-planning` (`GET /distance`),
+  `fulfillment-execution` (`GET /locations/{code}` for the slot's `role`),
+  and `warehouse-ops-agent` (MCP tools + the catalog-growth report). This
+  service never reaches into their aggregates, and none of them get write
+  access to this one's.
 - **Full ubiquitous language, aggregate invariants, domain events, and use
   cases**: `.claude/rules/domain-model.md`.
 
@@ -53,7 +56,7 @@ internal/
   domain/
     site/ zone/ aisle/ slot/ placement/ shared/
   application/
-    ports/                        OUT interfaces (repos, EventPublisher, Clock)
+    ports/                        OUT interfaces (repos, EventPublisher, Clock, LocationMetrics)
     usecases/                     one struct per use case
   adapters/
     inbound/http/                 chi handlers, DTOs, error mapping

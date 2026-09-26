@@ -65,6 +65,7 @@ curl localhost:8080/sites/WH1/layout
                                 "bay": "03", "level": "01", "position": "A"
                             },
                             "locationType": "PalletRack",
+                            "role": "Storage",
                             "capacity": { "maxWeightKg": 1200, "maxVolumeM3": 2.4 },
                             "status": "Active"
                         },
@@ -77,6 +78,7 @@ curl localhost:8080/sites/WH1/layout
                                 "bay": "03", "level": "02", "position": "A"
                             },
                             "locationType": "PalletRack",
+                            "role": "Storage",
                             "capacity": { "maxWeightKg": 1200, "maxVolumeM3": 2.4 },
                             "status": "Active"
                         },
@@ -89,6 +91,7 @@ curl localhost:8080/sites/WH1/layout
                                 "bay": "03", "level": "02", "position": "B"
                             },
                             "locationType": "PalletRack",
+                            "role": "Storage",
                             "capacity": { "maxWeightKg": 1200, "maxVolumeM3": 2.4 },
                             "status": "Active"
                         }
@@ -111,6 +114,7 @@ curl localhost:8080/sites/WH1/layout
                                 "bay": "01", "level": "01", "position": "A"
                             },
                             "locationType": "PalletRack",
+                            "role": "Storage",
                             "capacity": { "maxWeightKg": 1200, "maxVolumeM3": 2.4 },
                             "status": "Active"
                         }
@@ -139,6 +143,7 @@ curl localhost:8080/sites/WH1/layout
             ]
         }
     ],
+    "fixedStructures": [],
     "totals": {
         "zones": 2,
         "aisles": 3,
